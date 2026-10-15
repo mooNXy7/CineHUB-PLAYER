@@ -38,7 +38,8 @@
 - [x] TheIntroDB: consulta assíncrona por TMDB ID e prompt para pular abertura/recap/prévia quando existem marcações válidas; falha da API não interrompe o vídeo.
 - [x] Busca de legendas OpenSubtitles por idioma, com mapeamento TMDB → IMDb por fragmento e fallback para URL manual.
 - [x] Ajuste visual de legenda com tamanho pequeno/padrão/grande e fundo configurável separadamente.
-- [ ] Sincronização fina do atraso de legendas (exige camada de temporização para legendas externas; não marcar como concluído só com estilo visual).
+- [x] Ajuste de sincronização real para legendas externas SRT/WebVTT (−5 s, −2 s, original, +2 s, +5 s), com reescrita de timestamps em arquivo local e testes unitários.
+- [ ] Sincronização de faixas de legenda embutidas e valores de atraso mais finos.
 
 ## Fase 4 — Pós-reprodução e catálogo
 - [ ] Cartão visual do próximo episódio e recomendações reais por metadados (o aviso/autoplay de próximo episódio já existe, mas ainda não é o cartão visual).
@@ -55,7 +56,7 @@
 - Testes de reprodução só com streams de teste autorizados.
 
 ## Fase 5 — Pendências de integração e EPG
-- [ ] Implementar sincronização fina de legendas com deslocamento real dos cues.
+- [x] Implementar sincronização de timestamps em legendas externas SRT/VTT; falta suportar deslocamento de faixas embutidas e outros formatos.
 - [ ] Completar resolvedores de páginas embed e transporte de cabeçalhos por fonte; há apenas cabeçalhos genéricos e regras iniciais para hosts conhecidos.
 - [ ] Implementar serviço/sessão de mídia para controle de reprodução fora da Activity, se exigido pelo produto final.
 - [ ] Publicar uma API de integração segura entre CineHUB TV e o player; atualmente a Activity de teste não é exportada.
