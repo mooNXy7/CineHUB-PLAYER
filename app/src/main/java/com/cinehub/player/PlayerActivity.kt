@@ -175,7 +175,7 @@ class PlayerActivity : Activity() {
             ))
     
         } else {
-            radioExperience = RadioExperienceView(
+            val radioScreen = RadioExperienceView(
                 context = this,
                 stationName = radioName,
                 genre = radioGenre,
@@ -186,7 +186,8 @@ class PlayerActivity : Activity() {
                     }
                 }
             )
-            root.addView(radioExperience, FrameLayout.LayoutParams(
+            radioExperience = radioScreen
+            root.addView(radioScreen, FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.MATCH_PARENT
             ))
