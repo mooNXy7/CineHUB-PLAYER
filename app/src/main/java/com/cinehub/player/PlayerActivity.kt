@@ -1060,9 +1060,13 @@ class PlayerActivity : Activity() {
             ProviderUrlResolver.extractIframeUrls(response.body, finalUrl).forEach { nested ->
                 val nestedHost = runCatching { URL(nested).host.lowercase() }.getOrDefault("")
                 val nestedPath = runCatching { URL(nested).path.lowercase() }.getOrDefault("")
-                if ((nestedHost == "embedplayer2.xyz" || nestedHost.endsWith(".embedplayer2.xyz")) &&
-                    nestedPath.contains("/cdn/hls/")
-                ) {
+                val nestedLower = nested.lowercase()
+                val nestedIsMedia = Regex("""(?i)\.(?:m3u8|mpd|mp4|mkv|webm|avi|mov|m4v|ts)(?:$|[?#&])""")
+                    .containsMatchIn(nestedLower) ||
+                    nestedLower.contains("playlist") || nestedLower.contains("manifest") ||
+                    ((nestedHost == "embedplayer2.xyz" || nestedHost.endsWith(".embedplayer2.xyz")) &&
+                        nestedPath.contains("/cdn/hls/"))
+                if (nestedIsMedia) {
                     val resolved = ProviderUrlResolver.ResolvedSource(nested, finalUrl)
                     resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
                     return resolved
