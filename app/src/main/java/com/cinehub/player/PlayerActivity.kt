@@ -5,6 +5,7 @@ import android.app.ActivityManager
 import android.content.Intent
 import android.net.Uri
 import android.graphics.Color
+import android.graphics.BitmapFactory
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
@@ -16,6 +17,7 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -34,6 +36,9 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 
 /**
  * Minimal native playback shell. Launch with:
@@ -70,6 +75,7 @@ class PlayerActivity : Activity() {
     private var startupCheck: Runnable? = null
     private var startupTimeoutMs = 15_000L
     private val handler = android.os.Handler(mainLooper)
+    private val posterExecutor = Executors.newSingleThreadExecutor()
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
     private lateinit var speedButton: Button
@@ -512,7 +518,8 @@ class PlayerActivity : Activity() {
                         sources,
                         item.optInt("tmdb_id", 0).coerceAtLeast(0),
                         item.optInt("season", 0).coerceAtLeast(0),
-                        item.optInt("episode", 0).coerceAtLeast(0)
+                        item.optInt("episode", 0).coerceAtLeast(0),
+                        item.optString("poster_url").takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
                     ))
                 }
             }
@@ -633,6 +640,37 @@ class PlayerActivity : Activity() {
         }
     }
 
+    private fun loadPreviewPoster(target: ImageView, url: String) {
+        if (!PlaybackUrlPolicy.isSafeHttpUrl(url)) {
+            target.visibility = View.GONE
+            return
+        }
+        posterExecutor.execute {
+            val bitmap = runCatching {
+                val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 4_000
+                    readTimeout = 5_000
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "CineHUB-PLAYER/0.2")
+                }
+                try {
+                    if (connection.responseCode !in 200..299 ||
+                        (connection.contentLength > 0 && connection.contentLength > 2 * 1024 * 1024)
+                    ) {
+                        null
+                    } else {
+                        connection.inputStream.use { BitmapFactory.decodeStream(it) }
+                    }
+                } finally {
+                    connection.disconnect()
+                }
+            }.getOrNull()
+            if (bitmap != null) runOnUiThread {
+                if (!isFinishing && !isDestroyed && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+            }
+        }
+    }
+
     private fun showNextEpisodePrompt() {
         if (nextPromptShown || queueIndex >= episodeQueue.size) return
         nextPromptShown = true
@@ -641,6 +679,18 @@ class PlayerActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(28, 8, 28, 8)
         }
+        val poster = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(Color.rgb(28, 28, 32))
+            contentDescription = "Capa de ${next.title}"
+        }
+        val posterWidth = (128 * resources.displayMetrics.density).toInt()
+        val posterHeight = (184 * resources.displayMetrics.density).toInt()
+        panel.addView(poster, LinearLayout.LayoutParams(posterWidth, posterHeight).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = (12 * resources.displayMetrics.density).toInt()
+        })
+        loadPreviewPoster(poster, next.posterUrl)
         panel.addView(android.widget.TextView(this).apply {
             text = next.title
             textSize = 22f
@@ -1035,6 +1085,7 @@ class PlayerActivity : Activity() {
         stillWatchingDialog = null
         cancelProgressSave()
         cancelNextEpisodeCountdown()
+        posterExecutor.shutdownNow()
         playerView.player = null
         player?.release()
         player = null
