@@ -1032,7 +1032,7 @@ class PlayerActivity : Activity() {
                         val endpointHost = runCatching { URL(endpoint).host.lowercase() }.getOrDefault("")
                         if (endpointHost != "nhdapi.com" && !endpointHost.endsWith(".nhdapi.com")) return@forEach
                         val apiResponse = fetchProviderPage(endpoint, finalUrl, "application/json") ?: return@forEach
-                        val direct = ProviderUrlResolver.extractNhdPlayUrl(apiResponse.body) ?: return@forEach
+                        val direct = ProviderUrlResolver.extractNhdPlayUrl(apiResponse.body, finalUrl) ?: return@forEach
                         val resolved = ProviderUrlResolver.ResolvedSource(direct, finalUrl)
                         resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
                         return resolved
