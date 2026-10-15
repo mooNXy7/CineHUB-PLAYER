@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var streamInput: EditText
     private lateinit var memoryProfileButton: Button
+    private lateinit var sourceTimeoutButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -109,6 +110,23 @@ class MainActivity : Activity() {
         }
         content.addView(memoryProfileButton)
         updateMemoryProfileLabel()
+        sourceTimeoutButton = Button(this).apply {
+            setOnClickListener {
+                val prefs = getSharedPreferences("player-settings", MODE_PRIVATE)
+                val current = prefs.getInt("source_timeout_seconds", 15).coerceIn(5, 45)
+                val next = when (current) {
+                    10 -> 15
+                    15 -> 20
+                    20 -> 30
+                    30 -> 45
+                    else -> 10
+                }
+                prefs.edit().putInt("source_timeout_seconds", next).apply()
+                updateSourceTimeoutLabel()
+            }
+        }
+        content.addView(sourceTimeoutButton)
+        updateSourceTimeoutLabel()
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
             setSingleLine(true)
@@ -133,6 +151,13 @@ class MainActivity : Activity() {
         setContentView(root)
         TvUi.style(root)
         loadCatalogStatus()
+    }
+
+    private fun updateSourceTimeoutLabel() {
+        val seconds = getSharedPreferences("player-settings", MODE_PRIVATE)
+            .getInt("source_timeout_seconds", 15).coerceIn(5, 45)
+        sourceTimeoutButton.text = "Troca automática de fonte: ${seconds}s (pressione para alterar)"
+        sourceTimeoutButton.contentDescription = "Tempo de espera antes de trocar uma fonte: ${seconds} segundos"
     }
 
     private fun updateMemoryProfileLabel() {
