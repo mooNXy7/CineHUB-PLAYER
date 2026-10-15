@@ -28,9 +28,9 @@
 - [x] Política LIVE separada de VOD; live nunca pausa.
 
 ## Fase 3 — Séries e integrações
-- [ ] PainelEpisodios com temporada/episódio.
+- [x] Painel de temporadas/episódios acessível durante a reprodução, limitado a uma janela de até 100 episódios ao redor do selecionado.
 - [x] Fila de próximos episódios com aviso de 10 s e autoplay quando existem URLs diretas.
-- [x] Painel de próximos episódios acessível durante a reprodução por controle remoto, com seleção direta de um item da fila.
+- [x] Navegação durante a reprodução por temporadas e episódios disponíveis; fila limitada a 100 episódios e 3 fontes por episódio para reduzir o risco de payload excessivo.
 - [x] Evitar diálogos duplicados quando múltiplas falhas de fonte ocorrem quase ao mesmo tempo.
 - [x] Reutilizar a última fonte bem-sucedida no próximo episódio quando o host aparece entre as opções.
 - [x] Normalizar a fila de episódios: remover IDs/URLs duplicados, filtrar URLs inseguras e limitar filas/fontes para proteger aparelhos com pouca memória.
