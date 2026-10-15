@@ -90,6 +90,12 @@ class PlayerActivity : Activity() {
             ?.trim()
             ?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
         episodeQueue = parseEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
+        val suppliedCurrentQueueIndex = intent.getIntExtra("episode_queue_current_index", -1)
+        queueIndex = if (suppliedCurrentQueueIndex in episodeQueue.indices) {
+            suppliedCurrentQueueIndex + 1
+        } else {
+            0
+        }
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
         val singleUrl = intent.getStringExtra("url") ?: intent.dataString
         sourceUrls = (urls + listOfNotNull(singleUrl))
@@ -130,9 +136,9 @@ class PlayerActivity : Activity() {
         })
         if (!isLive && episodeQueue.isNotEmpty()) {
             controls.addView(Button(this).apply {
-                text = "Episódios"
-                contentDescription = "Abrir lista de próximos episódios"
-                setOnClickListener { showEpisodeQueuePanel() }
+                text = "Temporadas / episódios"
+                contentDescription = "Abrir temporadas e episódios disponíveis"
+                setOnClickListener { showSeasonQueuePicker() }
             })
         }
         speedButton = Button(this).apply {
@@ -371,23 +377,48 @@ class PlayerActivity : Activity() {
         }.getOrDefault(emptyList())
     }
 
-    private fun showEpisodeQueuePanel() {
+    private fun showSeasonQueuePicker() {
         if (episodeQueue.isEmpty()) {
-            Toast.makeText(this, "Não há próximos episódios nesta fila.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Não há episódios disponíveis nesta fila.", Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = episodeQueue.mapIndexed { index, episode ->
-            (index + 1).toString() + ". " + episode.title
+        val seasons = episodeQueue.map { it.season }.distinct().sorted()
+        if (seasons.isEmpty()) {
+            showEpisodeQueuePanel(null)
+            return
+        }
+        val labels = seasons.map { season ->
+            "Temporada $season · " + episodeQueue.count { it.season == season } + " episódios"
         }.toTypedArray()
         android.app.AlertDialog.Builder(this)
-            .setTitle("Próximos episódios")
+            .setTitle("Temporadas disponíveis")
             .setItems(labels) { _, index ->
-                if (index in episodeQueue.indices) {
-                    queueIndex = index
-                    playQueuedEpisode()
-                }
+                seasons.getOrNull(index)?.let { showEpisodeQueuePanel(it) }
             }
             .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun showEpisodeQueuePanel(season: Int?) {
+        val entries = episodeQueue.mapIndexedNotNull { index, episode ->
+            if (season == null || episode.season == season) index to episode else null
+        }
+        if (entries.isEmpty()) {
+            Toast.makeText(this, "Nenhum episódio disponível nesta temporada.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = entries.map { (_, episode) ->
+            "Episódio ${episode.episode}" +
+                if (episode.episode <= 0) " · ${episode.title}" else ""
+        }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle(if (season == null) "Episódios disponíveis" else "Temporada $season · Episódios")
+            .setItems(labels) { _, selected ->
+                val targetIndex = entries.getOrNull(selected)?.first ?: return@setItems
+                queueIndex = targetIndex
+                playQueuedEpisode()
+            }
+            .setNegativeButton("Voltar", if (season == null) null else { _, _ -> showSeasonQueuePicker() })
             .show()
     }
 
