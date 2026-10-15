@@ -326,7 +326,8 @@ class MainActivity : Activity() {
                                 details.id,
                                 tmdbId = details.tmdbId,
                                 catalogCategory = categoryFor(entry.type, entry.subtype),
-                                catalogGenres = entry.genres.ifEmpty { details.genres }
+                                catalogGenres = entry.genres.ifEmpty { details.genres },
+                                catalogItemId = entry.id
                             )
                         }
                     },
@@ -424,7 +425,8 @@ class MainActivity : Activity() {
                         episodeNumber,
                         queue.currentIndex,
                         catalogCategory = categoryFor(details.type, details.subtype),
-                        catalogGenres = details.genres
+                        catalogGenres = details.genres,
+                        catalogItemId = details.id
                     )
                 }
             }
@@ -457,7 +459,8 @@ class MainActivity : Activity() {
         episode: Int = 0,
         queueCurrentIndex: Int = -1,
         catalogCategory: String? = null,
-        catalogGenres: List<String> = emptyList()
+        catalogGenres: List<String> = emptyList(),
+        catalogItemId: String? = null
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -479,6 +482,7 @@ class MainActivity : Activity() {
             if (season > 0) putExtra("season_number", season)
             if (episode > 0) putExtra("episode_number", episode)
             catalogCategory?.let { putExtra("catalog_category", it) }
+            catalogItemId?.let { putExtra("catalog_item_id", it) }
             if (catalogGenres.isNotEmpty()) putStringArrayListExtra("catalog_genres", ArrayList(catalogGenres))
         })
     }
