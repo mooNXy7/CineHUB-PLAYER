@@ -384,12 +384,16 @@ class MainActivity : Activity() {
     ): EpisodeQueuePayload {
         // Keep a bounded window around the selected episode: the player receives enough
         // history for navigation and upcoming episodes without an oversized Android Intent.
+        val variantsByEpisode = details.episodes
+            .filter { it.episode > 0 && it.season >= 0 }
+            .groupBy { it.season to it.episode }
         val allEpisodes = details.episodes
             .filter { it.episode > 0 && it.season >= 0 }
             .distinctBy { it.season to it.episode }
             .sortedWith(compareBy<CatalogClient.EpisodeEntry> { it.season }.thenBy { it.episode })
-        val rawCurrentIndex = allEpisodes.indexOfFirst { it.season == season && it.episode == episodeNumber }
-        if (rawCurrentIndex < 0) return EpisodeQueuePayload("[]", -1)
+        if (allEpisodes.none { it.season == season && it.episode == episodeNumber }) {
+            return EpisodeQueuePayload("[]", -1)
+        }
 
         data class QueueCandidate(
             val season: Int,
@@ -399,9 +403,7 @@ class MainActivity : Activity() {
         )
 
         val candidates = allEpisodes.mapNotNull { episodeKey ->
-            val variants = details.episodes.filter {
-                it.season == episodeKey.season && it.episode == episodeKey.episode
-            }
+            val variants = variantsByEpisode[episodeKey.season to episodeKey.episode].orEmpty()
             val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
                 ?.takeIf { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
                 ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
