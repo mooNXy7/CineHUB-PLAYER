@@ -370,10 +370,7 @@ object CatalogClient {
                                         }
                                     }
                                     reader.endObject()
-                                    val validSources = (listOf(streamUrl) + sources)
-                                        .map(String::trim)
-                                        .filter(PlaybackUrlPolicy::isSafeHttpUrl)
-                                        .distinct()
+                                    val validSources = ChannelSourcePolicy.normalize(streamUrl, sources)
                                     if (name.isNotBlank() && validSources.isNotEmpty()) {
                                         entries.add(ChannelEntry(id.ifBlank { name.lowercase() }, name, category, logo, validSources))
                                     }
