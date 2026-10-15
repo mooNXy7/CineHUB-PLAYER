@@ -124,7 +124,7 @@ class PlayerActivity : Activity() {
                                 val savedPosition = getSharedPreferences("playback-progress", MODE_PRIVATE)
                                     .getLong(contentId, 0L)
                                 if (savedPosition > 0L && (this@PlayerActivity.player?.currentPosition ?: 0L) < 5_000L) {
-                                    seekTo(savedPosition)
+                                    this@PlayerActivity.player?.seekTo(savedPosition)
                                 }
                             }
                         }
