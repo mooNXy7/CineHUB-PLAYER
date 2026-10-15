@@ -86,6 +86,11 @@ class MainActivity : Activity() {
         }
         content.addView(categoriesScroll)
         content.addView(Button(this).apply {
+            text = "CARREGAR CANAIS AO VIVO"
+            contentDescription = "Carregar canais com fontes diretas disponíveis"
+            setOnClickListener { showChannelPicker() }
+        })
+        content.addView(Button(this).apply {
             text = "CARREGAR RÁDIOS DO CINEHUB-ACERVO"
             setOnClickListener { showRadioPicker() }
         })
@@ -152,6 +157,47 @@ class MainActivity : Activity() {
             putExtra("live", live)
             putExtra("content_id", url.hashCode().toString())
         })
+    }
+
+    private fun showChannelPicker() {
+        status.text = "Carregando canais com fontes diretas disponíveis…"
+        CatalogClient.loadChannelPreview(80) { result ->
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { channels ->
+                        if (channels.isEmpty()) {
+                            status.text = "O catálogo de canais respondeu, mas ainda não publicou fontes diretas reproduzíveis. As fontes pendentes não serão tratadas como streams."
+                            status.setTextColor(Color.rgb(255, 190, 150))
+                            return@fold
+                        }
+                        val labels = channels.map { channel ->
+                            channel.name + (channel.category.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
+                                " · ${channel.sources.size} fonte(s)"
+                        }.toTypedArray()
+                        status.text = "Canais disponíveis: ${channels.size}. Escolha um canal para iniciar."
+                        status.setTextColor(Color.rgb(180, 235, 180))
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Canais ao vivo · CineHUB")
+                            .setItems(labels) { _, index ->
+                                val channel = channels.getOrNull(index) ?: return@setItems
+                                startActivity(Intent(this, PlayerActivity::class.java).apply {
+                                    putStringArrayListExtra("sources", ArrayList(channel.sources))
+                                    putExtra("live", true)
+                                    putExtra("content_type", "live")
+                                    putExtra("content_id", channel.id)
+                                    putExtra("channel_name", channel.name)
+                                })
+                            }
+                            .setNegativeButton("Fechar", null)
+                            .show()
+                    },
+                    onFailure = { error ->
+                        status.text = "Não foi possível carregar os canais: " + (error.message ?: "erro desconhecido")
+                        status.setTextColor(Color.rgb(255, 190, 150))
+                    }
+                )
+            }
+        }
     }
 
     private fun showRadioPicker() {
