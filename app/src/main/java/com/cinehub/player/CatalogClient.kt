@@ -93,7 +93,9 @@ object CatalogClient {
         executor.execute {
             onResult(runCatching {
                 require(entry.detailPath.startsWith("catalog/vod/details/")) { "Invalid catalog detail path" }
-                readContentDetails(BASE + entry.detailPath, entry.id)
+                // Some shard names begin with "#"; encode it so URL parsing does not treat it as a fragment.
+                val safePath = entry.detailPath.replace("#", "%23")
+                readContentDetails(BASE + safePath, entry.id)
             })
         }
     }
