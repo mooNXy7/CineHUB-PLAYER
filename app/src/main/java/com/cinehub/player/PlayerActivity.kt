@@ -421,11 +421,29 @@ class PlayerActivity : Activity() {
         startupCheck?.let(handler::removeCallbacks)
         startupCheck = null
         val next = PlaybackSourcePolicy.nextUnattemptedIndex(sourceUrls, currentIndex, attempted)
-        if (next != null) playSource(next)
-        else {
-            Toast.makeText(this, "Não foi possível reproduzir este conteúdo.", Toast.LENGTH_LONG).show()
-            finish()
+        if (next != null) {
+            playSource(next)
+            return
         }
+
+        // A broken episode should not strand the user when a later episode is available.
+        if (!isLive && queueIndex < episodeQueue.size && !isFinishing) {
+            val nextEpisode = episodeQueue[queueIndex]
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Fontes indisponíveis")
+                .setMessage(
+                    "Não foi possível iniciar este conteúdo. Deseja pular para " +
+                        nextEpisode.title + "?"
+                )
+                .setPositiveButton("Tentar próximo episódio") { _, _ -> playQueuedEpisode() }
+                .setNegativeButton("Fechar player") { _, _ -> finish() }
+                .setOnCancelListener { if (!isFinishing) finish() }
+                .show()
+            return
+        }
+
+        Toast.makeText(this, "Não foi possível reproduzir este conteúdo.", Toast.LENGTH_LONG).show()
+        finish()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
