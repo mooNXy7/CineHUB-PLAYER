@@ -16,7 +16,12 @@ import java.util.concurrent.Executors
 object CatalogClient {
     private const val BASE =
         "https://raw.githubusercontent.com/mooNXy7/CineHUB-ACERVO/main/"
+    private const val SAIMO_BASE =
+        "https://raw.githubusercontent.com/gabrielsaimo/SaimoPlayer/main/"
     private val executor = Executors.newSingleThreadExecutor()
+    @Volatile private var cachedProviderBases: Map<Int, String> = emptyMap()
+    @Volatile private var providerBasesLoadedAt = 0L
+    private const val PROVIDER_BASES_TTL_MS = 10 * 60 * 1000L
     private val categoryPaths = mapOf(
         "movies" to "catalog/vod/index/movies.json",
         "series" to "catalog/vod/index/series.json",
@@ -103,7 +108,18 @@ object CatalogClient {
                 require(entry.detailPath.startsWith("catalog/vod/details/")) { "Invalid catalog detail path" }
                 // Some shard names begin with "#"; encode it so URL parsing does not treat it as a fragment.
                 val safePath = entry.detailPath.replace("#", "%23")
-                readContentDetails(BASE + safePath, entry.id)
+                val details = readContentDetails(BASE + safePath, entry.id)
+                // Provider refs use the same indexed bases and relative file refs as SaimoPlayer's VodFormato.
+                val bases = providerBases()
+                val directSources = (details.sources + resolveProviderReferences(details.providerRefs, bases))
+                    .distinctBy { it.url }.sortedBy { it.priority }
+                val episodes = details.episodes.map { episode ->
+                    episode.copy(
+                        sources = (episode.sources + resolveProviderReferences(episode.providerRefs, bases))
+                            .distinctBy { it.url }.sortedBy { it.priority }
+                    )
+                }
+                details.copy(sources = directSources, episodes = episodes)
             })
         }
     }
@@ -145,6 +161,56 @@ object CatalogClient {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun providerBases(): Map<Int, String> {
+        val now = System.currentTimeMillis()
+        if (cachedProviderBases.isNotEmpty() && now - providerBasesLoadedAt < PROVIDER_BASES_TTL_MS) {
+            return cachedProviderBases
+        }
+        return runCatching {
+            val text = fetchText(SAIMO_BASE + "vod/indice.txt", 2 * 1024 * 1024)
+            val parsed = text.lineSequence().mapNotNull { line ->
+                if (!line.startsWith("base:")) return@mapNotNull null
+                val value = line.removePrefix("base:").trim()
+                val split = value.split(Regex("\\s+"), limit = 2)
+                if (split.size != 2) return@mapNotNull null
+                val index = split[0].toIntOrNull() ?: return@mapNotNull null
+                val base = split[1].trim()
+                val uri = runCatching { URL(base) }.getOrNull() ?: return@mapNotNull null
+                if (uri.protocol !in setOf("http", "https") ||
+                    uri.host.endsWith(".invalid", ignoreCase = true)) return@mapNotNull null
+                index to if (base.endsWith("/")) base else "$base/"
+            }.toMap()
+            cachedProviderBases = parsed
+            providerBasesLoadedAt = now
+            parsed
+        }.getOrElse { cachedProviderBases }
+    }
+
+    private fun resolveProviderReferences(
+        references: List<ProviderReference>,
+        bases: Map<Int, String>
+    ): List<PlaybackSource> = references.mapIndexedNotNull { index, reference ->
+        val providerIndex = reference.provider.toIntOrNull() ?: return@mapIndexedNotNull null
+        val base = bases[providerIndex] ?: return@mapIndexedNotNull null
+        val ref = reference.ref.trim()
+        if (ref.isBlank() || ref.contains("://") || ref.split('/').any { it == ".." }) {
+            return@mapIndexedNotNull null
+        }
+        // Match SaimoTV VodFormato: refs with an extension are used as-is; otherwise append .mp4.
+        val suffix = if (ref.contains('.')) ref else "$ref.mp4"
+        val url = base + suffix
+        val parsed = runCatching { URL(url) }.getOrNull() ?: return@mapIndexedNotNull null
+        if (parsed.protocol !in setOf("http", "https") ||
+            parsed.host.endsWith(".invalid", ignoreCase = true)) return@mapIndexedNotNull null
+        PlaybackSource(
+            url = url,
+            audio = reference.audio,
+            priority = 200 + index,
+            sourceId = reference.sourceId.ifBlank { "provider-" + reference.provider },
+            sourceType = "provider-resolved"
+        )
     }
 
     private fun readSources(reader: JsonReader): List<PlaybackSource> {
