@@ -320,15 +320,17 @@ class MainActivity : Activity() {
                         if (details.episodes.isNotEmpty()) {
                             showSeasonPicker(details)
                         } else {
+                            val directSources = details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                                .sortedBy { it.priority }.distinctBy { it.url }
                             choosePlaybackSources(
                                 details.title,
-                                details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
-                                    .sortedBy { it.priority }.map { it.url },
+                                directSources.map { it.url },
                                 details.id,
                                 tmdbId = details.tmdbId,
                                 catalogCategory = categoryFor(entry.type, entry.subtype),
                                 catalogGenres = entry.genres.ifEmpty { details.genres },
-                                catalogItemId = entry.id
+                                catalogItemId = entry.id,
+                                sourceReferers = directSources.map { it.referer }
                             )
                         }
                     },
@@ -398,8 +400,10 @@ class MainActivity : Activity() {
             .setTitle("T$season · E$episodeNumber · Áudio")
             .setItems(labels.toTypedArray()) { _, index ->
                 val variant = variants[index]
-                val direct = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
-                    .sortedBy { it.priority }.map { it.url }.distinct()
+                val directSources = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                    .sortedBy { it.priority }.distinctBy { it.url }
+                val direct = directSources.map { it.url }
+                val directReferers = directSources.map { it.referer }
                 val id = details.id + "-" + season + "-" + episodeNumber + "-" + variant.audio
                 if (direct.isEmpty()) {
                     val references = variant.providerRefs.size
@@ -427,7 +431,8 @@ class MainActivity : Activity() {
                         queue.currentIndex,
                         catalogCategory = categoryFor(details.type, details.subtype),
                         catalogGenres = details.genres,
-                        catalogItemId = details.id
+                        catalogItemId = details.id,
+                        sourceReferers = directReferers
                     )
                 }
             }
@@ -461,7 +466,8 @@ class MainActivity : Activity() {
         queueCurrentIndex: Int = -1,
         catalogCategory: String? = null,
         catalogGenres: List<String> = emptyList(),
-        catalogItemId: String? = null
+        catalogItemId: String? = null,
+        sourceReferers: List<String> = emptyList()
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -474,6 +480,11 @@ class MainActivity : Activity() {
         }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
             putStringArrayListExtra("sources", ArrayList(uniqueUrls))
+            if (sourceReferers.isNotEmpty()) {
+                putStringArrayListExtra("source_referers", ArrayList(uniqueUrls.map { url ->
+                    sourceReferers.getOrNull(urls.indexOf(url)).orEmpty()
+                }))
+            }
             putExtra("content_id", contentId)
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
@@ -511,7 +522,8 @@ class MainActivity : Activity() {
             val season: Int,
             val episode: Int,
             val audio: String,
-            val urls: List<String>
+            val urls: List<String>,
+            val referers: List<String>
         )
 
         val candidates = allEpisodes.mapNotNull { episodeKey ->
@@ -519,14 +531,15 @@ class MainActivity : Activity() {
             val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
                 ?.takeIf { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
                 ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
-            val urls = selected?.sources.orEmpty()
+            val directSources = selected?.sources.orEmpty()
                 .filter(CatalogClient::isDirectPlaybackSource)
                 .sortedBy { it.priority }
-                .map { it.url }
-                .distinct()
+                .distinctBy { it.url }
                 .take(3)
+            val urls = directSources.map { it.url }
+            val referers = directSources.map { it.referer }
             if (selected == null || urls.isEmpty()) null
-            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls)
+            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls, referers)
         }
 
         val currentCandidateIndex = candidates.indexOfFirst {
@@ -544,6 +557,7 @@ class MainActivity : Activity() {
                 put("title", details.title + " · T" + candidate.season + " E" + candidate.episode)
                 put("content_id", details.id + "-" + candidate.season + "-" + candidate.episode + "-" + candidate.audio)
                 put("sources", JSONArray(candidate.urls))
+                put("source_referers", JSONArray(candidate.referers))
                 put("tmdb_id", details.tmdbId)
                 put("season", candidate.season)
                 put("episode", candidate.episode)
