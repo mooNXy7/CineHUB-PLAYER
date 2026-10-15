@@ -54,6 +54,7 @@ class PlayerActivity : Activity() {
     private var player: ExoPlayer? = null
     private var httpDataSourceFactory: DefaultHttpDataSource.Factory? = null
     private var sourceUrls: List<String> = emptyList()
+    private var sourceReferers: List<String> = emptyList()
     private var attempted = mutableSetOf<String>()
     private var currentIndex = 0
     private var sourceRequestToken = 0
@@ -139,11 +140,17 @@ class PlayerActivity : Activity() {
             0
         }
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
+        val suppliedReferers = intent.getStringArrayListExtra("source_referers")?.toList().orEmpty()
         val singleUrl = intent.getStringExtra("url") ?: intent.dataString
-        sourceUrls = (urls + listOfNotNull(singleUrl))
-            .map(String::trim)
-            .filter(PlaybackUrlPolicy::isSafeHttpUrl)
-            .distinct()
+        val sourcePairs = urls.mapIndexed { index, url -> url to suppliedReferers.getOrNull(index).orEmpty() } +
+            listOfNotNull(singleUrl?.let { it to "" })
+        val uniquePairs = sourcePairs.mapNotNull { (rawUrl, rawReferer) ->
+            val url = rawUrl.trim()
+            if (!PlaybackUrlPolicy.isSafeHttpUrl(url)) null
+            else url to rawReferer.takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
+        }.distinctBy { it.first }
+        sourceUrls = uniquePairs.map { it.first }
+        sourceReferers = uniquePairs.map { it.second }
 
         playerView = PlayerView(this).apply {
             useController = !isRadio
@@ -538,7 +545,10 @@ class PlayerActivity : Activity() {
                         item.optInt("tmdb_id", 0).coerceAtLeast(0),
                         item.optInt("season", 0).coerceAtLeast(0),
                         item.optInt("episode", 0).coerceAtLeast(0),
-                        item.optString("poster_url").takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
+                        item.optString("poster_url").takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty(),
+                        item.optJSONArray("source_referers")?.let { refs ->
+                            (0 until refs.length()).map { refs.optString(it).takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty() }
+                        }.orEmpty()
                     ))
                 }
             }
@@ -609,6 +619,7 @@ class PlayerActivity : Activity() {
                             .setItems(labels) { _, index ->
                                 val station = stations.getOrNull(index) ?: return@setItems
                                 sourceUrls = listOf(station.streamUrl)
+                                sourceReferers = emptyList()
                                 attempted.clear()
                                 currentIndex = 0
                                 contentId = station.id
@@ -849,11 +860,14 @@ class PlayerActivity : Activity() {
             getSharedPreferences("player-settings", MODE_PRIVATE)
                 .getString("preferred_source_host_$seriesId", null)
         } else null
-        sourceUrls = if (preferredHost.isNullOrBlank()) next.sources else {
-            next.sources.sortedBy { url ->
-                if (runCatching { Uri.parse(url).host }.getOrNull().equals(preferredHost, ignoreCase = true)) 0 else 1
-            }
+        val sourcePairs = next.sources.mapIndexed { index, url ->
+            url to next.sourceReferers.getOrNull(index).orEmpty()
         }
+        val orderedPairs = if (preferredHost.isNullOrBlank()) sourcePairs else sourcePairs.sortedBy { (url, _) ->
+            if (runCatching { Uri.parse(url).host }.getOrNull().equals(preferredHost, ignoreCase = true)) 0 else 1
+        }
+        sourceUrls = orderedPairs.map { it.first }
+        sourceReferers = orderedPairs.map { it.second }
         attempted.clear()
         currentIndex = 0
         nextPromptShown = false
@@ -944,14 +958,22 @@ class PlayerActivity : Activity() {
         startupCheck = null
         val host = runCatching { Uri.parse(originalUrl).host.orEmpty().lowercase() }.getOrDefault("")
         val requestHeaders = linkedMapOf("Accept" to "*/*")
+        val declaredReferer = sourceReferers.getOrNull(currentIndex).orEmpty()
+        if (PlaybackUrlPolicy.isSafeHttpUrl(declaredReferer)) {
+            requestHeaders["Referer"] = declaredReferer
+            val refererUri = runCatching { Uri.parse(declaredReferer) }.getOrNull()
+            if (refererUri != null && !refererUri.host.isNullOrBlank()) {
+                requestHeaders["Origin"] = "${refererUri.scheme}://${refererUri.host}"
+            }
+        }
         when {
             host == "embedplayer2.xyz" || host.endsWith(".embedplayer2.xyz") -> {
-                requestHeaders["Referer"] = "https://embedplayer2.xyz/"
-                requestHeaders["Origin"] = "https://embedplayer2.xyz"
+                if (requestHeaders["Referer"].isNullOrBlank()) requestHeaders["Referer"] = "https://embedplayer2.xyz/"
+                if (requestHeaders["Origin"].isNullOrBlank()) requestHeaders["Origin"] = "https://embedplayer2.xyz"
             }
             host == "dadinhodetapioca.fun" || host.endsWith(".dadinhodetapioca.fun") -> {
-                requestHeaders["Referer"] = "https://dadinhodetapioca.fun/"
-                requestHeaders["Origin"] = "https://dadinhodetapioca.fun"
+                if (requestHeaders["Referer"].isNullOrBlank()) requestHeaders["Referer"] = "https://dadinhodetapioca.fun/"
+                if (requestHeaders["Origin"].isNullOrBlank()) requestHeaders["Origin"] = "https://dadinhodetapioca.fun"
             }
         }
         httpDataSourceFactory?.setDefaultRequestProperties(requestHeaders)
