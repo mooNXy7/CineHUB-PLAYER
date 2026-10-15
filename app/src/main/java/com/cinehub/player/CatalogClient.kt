@@ -40,13 +40,21 @@ object CatalogClient {
 
     data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
     data class PlaybackSource(val url: String, val audio: String, val priority: Int, val sourceId: String, val sourceType: String)
-    data class EpisodeEntry(val season: Int, val episode: Int, val audio: String, val sources: List<PlaybackSource>)
+    data class ProviderReference(val provider: String, val ref: String, val audio: String, val sourceId: String)
+    data class EpisodeEntry(
+        val season: Int,
+        val episode: Int,
+        val audio: String,
+        val sources: List<PlaybackSource>,
+        val providerRefs: List<ProviderReference> = emptyList()
+    )
     data class ContentDetails(
         val id: String,
         val title: String,
         val type: String,
         val sources: List<PlaybackSource>,
-        val episodes: List<EpisodeEntry>
+        val episodes: List<EpisodeEntry>,
+        val providerRefs: List<ProviderReference> = emptyList()
     )
 
     /** Reject catalog entries that are HTML embed pages mislabeled as direct streams. */
@@ -113,6 +121,7 @@ object CatalogClient {
                 var type = ""
                 var sources = emptyList<PlaybackSource>()
                 var episodes = emptyList<EpisodeEntry>()
+                var providerRefs = emptyList<ProviderReference>()
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -121,13 +130,14 @@ object CatalogClient {
                         "type" -> type = readNullableString(reader)
                         "sources" -> sources = readSources(reader)
                         "seasons" -> episodes = readSeasons(reader)
+                        "provider_refs" -> providerRefs = readProviderReferences(reader)
                         else -> reader.skipValue()
                     }
                 }
                 reader.endObject()
                 if (id == wantedId) {
                     reader.close()
-                    return ContentDetails(id, title, type, sources, episodes)
+                    return ContentDetails(id, title, type, sources, episodes, providerRefs)
                 }
             }
             reader.close()
@@ -170,6 +180,37 @@ object CatalogClient {
         return result.sortedBy { it.priority }
     }
 
+    private fun readProviderReferences(reader: JsonReader): List<ProviderReference> {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return emptyList()
+        }
+        val result = mutableListOf<ProviderReference>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            var provider = ""
+            var ref = ""
+            var audio = ""
+            var sourceId = ""
+            reader.beginObject()
+            while (reader.hasNext()) {
+                when (reader.nextName()) {
+                    "provider" -> provider = readNullableString(reader)
+                    "ref" -> ref = readNullableString(reader)
+                    "audio" -> audio = readNullableString(reader)
+                    "source_id" -> sourceId = readNullableString(reader)
+                    else -> reader.skipValue()
+                }
+            }
+            reader.endObject()
+            if (provider.isNotBlank() && ref.isNotBlank()) {
+                result.add(ProviderReference(provider, ref, audio, sourceId))
+            }
+        }
+        reader.endArray()
+        return result
+    }
+
     private fun readSeasons(reader: JsonReader): List<EpisodeEntry> {
         if (reader.peek() == JsonToken.NULL) {
             reader.nextNull()
@@ -194,17 +235,19 @@ object CatalogClient {
                                 var episodeNumber = 0
                                 var audio = ""
                                 var sources = emptyList<PlaybackSource>()
+                                var providerRefs = emptyList<ProviderReference>()
                                 reader.beginObject()
                                 while (reader.hasNext()) {
                                     when (reader.nextName()) {
                                         "episode" -> episodeNumber = readNullableString(reader).toIntOrNull() ?: 0
                                         "audio" -> audio = readNullableString(reader)
                                         "sources" -> sources = readSources(reader)
+                                        "provider_refs" -> providerRefs = readProviderReferences(reader)
                                         else -> reader.skipValue()
                                     }
                                 }
                                 reader.endObject()
-                                parsed.add(EpisodeEntry(seasonNumber, episodeNumber, audio, sources))
+                                parsed.add(EpisodeEntry(seasonNumber, episodeNumber, audio, sources, providerRefs))
                             }
                             reader.endArray()
                             seasonEpisodes = parsed
