@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.util.Base64
+import android.util.Base64
 
 /**
  * Pure URL builder for indexed provider references published by SaimoPlayer.
@@ -146,7 +146,7 @@ internal object ProviderUrlResolver {
             val token = match.groupValues[1]
             runCatching {
                 val padded = token + "=".repeat((4 - token.length % 4) % 4)
-                String(Base64.getDecoder().decode(padded), StandardCharsets.UTF_8)
+                String(Base64.decode(padded, Base64.DEFAULT), StandardCharsets.UTF_8)
             }.getOrNull()?.let(variants::add)
         }
         return variants.toList()
