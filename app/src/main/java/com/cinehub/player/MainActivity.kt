@@ -18,6 +18,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 class MainActivity : Activity() {
+    private data class EpisodeQueuePayload(val json: String, val currentIndex: Int)
+
     private lateinit var status: TextView
     private lateinit var streamInput: EditText
     private lateinit var memoryProfileButton: Button
@@ -316,15 +318,17 @@ class MainActivity : Activity() {
                         .setPositiveButton("OK", null)
                         .show()
                 } else {
+                    val queue = buildEpisodeQueue(details, season, episodeNumber, variant.audio)
                     choosePlaybackSources(
                         details.title + " · T$season E$episodeNumber · " + audioLabel(variant.audio),
                         direct,
                         id,
-                        buildEpisodeQueue(details, season, episodeNumber, variant.audio),
+                        queue.json,
                         details.id,
                         details.tmdbId,
                         season,
-                        episodeNumber
+                        episodeNumber,
+                        queue.currentIndex
                     )
                 }
             }
@@ -347,7 +351,8 @@ class MainActivity : Activity() {
         seriesId: String? = null,
         tmdbId: Int = 0,
         season: Int = 0,
-        episode: Int = 0
+        episode: Int = 0,
+        queueCurrentIndex: Int = -1
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -363,6 +368,7 @@ class MainActivity : Activity() {
             putExtra("content_id", contentId)
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
+            if (queueCurrentIndex >= 0) putExtra("episode_queue_current_index", queueCurrentIndex)
             seriesId?.let { putExtra("series_id", it) }
             if (tmdbId > 0) putExtra("tmdb_id", tmdbId)
             if (season > 0) putExtra("season_number", season)
@@ -375,36 +381,62 @@ class MainActivity : Activity() {
         season: Int,
         episodeNumber: Int,
         preferredAudio: String
-    ): String {
+    ): EpisodeQueuePayload {
+        // Keep a bounded window around the selected episode: the player receives enough
+        // history for navigation and upcoming episodes without an oversized Android Intent.
         val allEpisodes = details.episodes
-            .filter { it.episode > 0 }
+            .filter { it.episode > 0 && it.season >= 0 }
             .distinctBy { it.season to it.episode }
             .sortedWith(compareBy<CatalogClient.EpisodeEntry> { it.season }.thenBy { it.episode })
-        val currentIndex = allEpisodes.indexOfFirst { it.season == season && it.episode == episodeNumber }
-        if (currentIndex < 0 || currentIndex >= allEpisodes.lastIndex) return "[]"
-        val queue = JSONArray()
-        allEpisodes.drop(currentIndex + 1).forEach { episodeKey ->
+        val rawCurrentIndex = allEpisodes.indexOfFirst { it.season == season && it.episode == episodeNumber }
+        if (rawCurrentIndex < 0) return EpisodeQueuePayload("[]", -1)
+
+        data class QueueCandidate(
+            val season: Int,
+            val episode: Int,
+            val audio: String,
+            val urls: List<String>
+        )
+
+        val candidates = allEpisodes.mapNotNull { episodeKey ->
             val variants = details.episodes.filter {
                 it.season == episodeKey.season && it.episode == episodeKey.episode
             }
             val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
-                ?.takeIf { it.sources.any(CatalogClient::isDirectPlaybackSource) }
+                ?.takeIf { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
                 ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
             val urls = selected?.sources.orEmpty()
                 .filter(CatalogClient::isDirectPlaybackSource)
-                .sortedBy { it.priority }.map { it.url }.distinct()
-            if (urls.isNotEmpty()) {
-                queue.put(JSONObject().apply {
-                    put("title", details.title + " · T" + episodeKey.season + " E" + episodeKey.episode)
-                    put("content_id", details.id + "-" + episodeKey.season + "-" + episodeKey.episode + "-" + (selected?.audio ?: ""))
-                    put("sources", JSONArray(urls))
-                    put("tmdb_id", details.tmdbId)
-                    put("season", episodeKey.season)
-                    put("episode", episodeKey.episode)
-                })
-            }
+                .sortedBy { it.priority }
+                .map { it.url }
+                .distinct()
+                .take(3)
+            if (selected == null || urls.isEmpty()) null
+            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls)
         }
-        return queue.toString()
+
+        val currentCandidateIndex = candidates.indexOfFirst {
+            it.season == season && it.episode == episodeNumber
+        }
+        if (currentCandidateIndex < 0) return EpisodeQueuePayload("[]", -1)
+
+        val maxWindow = EpisodeQueuePolicy.MAX_EPISODES
+        val start = (currentCandidateIndex - 20).coerceAtLeast(0)
+            .coerceAtMost((candidates.size - maxWindow).coerceAtLeast(0))
+        val window = candidates.drop(start).take(maxWindow)
+        val queue = JSONArray()
+        window.forEach { candidate ->
+            queue.put(JSONObject().apply {
+                put("title", details.title + " · T" + candidate.season + " E" + candidate.episode)
+                put("content_id", details.id + "-" + candidate.season + "-" + candidate.episode + "-" + candidate.audio)
+                put("sources", JSONArray(candidate.urls))
+                put("tmdb_id", details.tmdbId)
+                put("season", candidate.season)
+                put("episode", candidate.episode)
+            })
+        }
+        val currentIndex = currentCandidateIndex - start
+        return EpisodeQueuePayload(queue.toString(), currentIndex)
     }
 
     private fun loadCatalogStatus() {
