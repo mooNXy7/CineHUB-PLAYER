@@ -104,6 +104,7 @@ class MainActivity : Activity() {
             setOnClickListener { loadCatalogStatus() }
         })
         setContentView(root)
+        TvUi.style(root)
         loadCatalogStatus()
     }
 
