@@ -39,6 +39,15 @@ object CatalogClient {
     )
 
     data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
+    data class PlaybackSource(val url: String, val audio: String, val priority: Int, val sourceId: String, val sourceType: String)
+    data class EpisodeEntry(val season: Int, val episode: Int, val audio: String, val sources: List<PlaybackSource>)
+    data class ContentDetails(
+        val id: String,
+        val title: String,
+        val type: String,
+        val sources: List<PlaybackSource>,
+        val episodes: List<EpisodeEntry>
+    )
 
     fun loadVodIndex(onResult: (Result<CatalogIndex>) -> Unit) {
         executor.execute {
@@ -66,6 +75,135 @@ object CatalogClient {
                 readArrayPreview(BASE + path, limit)
             })
         }
+    }
+
+    fun loadContentDetails(entry: CatalogEntry, onResult: (Result<ContentDetails>) -> Unit) {
+        executor.execute {
+            onResult(runCatching {
+                require(entry.detailPath.startsWith("catalog/vod/details/")) { "Invalid catalog detail path" }
+                readContentDetails(BASE + entry.detailPath, entry.id)
+            })
+        }
+    }
+
+    private fun readContentDetails(address: String, wantedId: String): ContentDetails {
+        val connection = open(address)
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) error("Detalhes do catálogo responderam HTTP $status")
+            val reader = JsonReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            reader.beginArray()
+            while (reader.hasNext()) {
+                var id = ""
+                var title = ""
+                var type = ""
+                var sources = emptyList<PlaybackSource>()
+                var episodes = emptyList<EpisodeEntry>()
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    when (reader.nextName()) {
+                        "id" -> id = readNullableString(reader)
+                        "title" -> title = readNullableString(reader)
+                        "type" -> type = readNullableString(reader)
+                        "sources" -> sources = readSources(reader)
+                        "seasons" -> episodes = readSeasons(reader)
+                        else -> reader.skipValue()
+                    }
+                }
+                reader.endObject()
+                if (id == wantedId) {
+                    reader.close()
+                    return ContentDetails(id, title, type, sources, episodes)
+                }
+            }
+            reader.close()
+            error("Título não encontrado no arquivo de detalhes")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun readSources(reader: JsonReader): List<PlaybackSource> {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return emptyList()
+        }
+        val result = mutableListOf<PlaybackSource>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            var url = ""
+            var audio = ""
+            var priority = 100
+            var sourceId = ""
+            var sourceType = ""
+            reader.beginObject()
+            while (reader.hasNext()) {
+                when (reader.nextName()) {
+                    "url" -> url = readNullableString(reader)
+                    "audio" -> audio = readNullableString(reader)
+                    "priority" -> priority = readNullableString(reader).toIntOrNull() ?: 100
+                    "source_id" -> sourceId = readNullableString(reader)
+                    "source_type" -> sourceType = readNullableString(reader)
+                    else -> reader.skipValue()
+                }
+            }
+            reader.endObject()
+            if (url.startsWith("https://") || url.startsWith("http://")) {
+                result.add(PlaybackSource(url, audio, priority, sourceId, sourceType))
+            }
+        }
+        reader.endArray()
+        return result.sortedBy { it.priority }
+    }
+
+    private fun readSeasons(reader: JsonReader): List<EpisodeEntry> {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return emptyList()
+        }
+        val result = mutableListOf<EpisodeEntry>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            var seasonNumber = 1
+            var seasonEpisodes = emptyList<EpisodeEntry>()
+            reader.beginObject()
+            while (reader.hasNext()) {
+                when (reader.nextName()) {
+                    "season" -> seasonNumber = readNullableString(reader).toIntOrNull() ?: 1
+                    "episodes" -> {
+                        if (reader.peek() == JsonToken.NULL) {
+                            reader.nextNull()
+                        } else {
+                            reader.beginArray()
+                            val parsed = mutableListOf<EpisodeEntry>()
+                            while (reader.hasNext()) {
+                                var episodeNumber = 0
+                                var audio = ""
+                                var sources = emptyList<PlaybackSource>()
+                                reader.beginObject()
+                                while (reader.hasNext()) {
+                                    when (reader.nextName()) {
+                                        "episode" -> episodeNumber = readNullableString(reader).toIntOrNull() ?: 0
+                                        "audio" -> audio = readNullableString(reader)
+                                        "sources" -> sources = readSources(reader)
+                                        else -> reader.skipValue()
+                                    }
+                                }
+                                reader.endObject()
+                                parsed.add(EpisodeEntry(seasonNumber, episodeNumber, audio, sources))
+                            }
+                            reader.endArray()
+                            seasonEpisodes = parsed
+                        }
+                    }
+                    else -> reader.skipValue()
+                }
+            }
+            reader.endObject()
+            result.addAll(seasonEpisodes)
+        }
+        reader.endArray()
+        return result.sortedWith(compareBy<EpisodeEntry> { it.season }.thenBy { it.episode }.thenBy { it.audio })
     }
 
     fun loadRadioPreview(limit: Int = 50, onResult: (Result<List<RadioEntry>>) -> Unit) {
