@@ -67,6 +67,9 @@ class PlayerActivity : Activity() {
     private var nextEpisodeRunnable: Runnable? = null
     private var nextPromptShown = false
     private var failureDialogShown = false
+    private var stillWatchingRunnable: Runnable? = null
+    private var stillWatchingDialog: android.app.AlertDialog? = null
+    private val stillWatchingIntervalMs = 2L * 60L * 60L * 1_000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -228,7 +231,12 @@ class PlayerActivity : Activity() {
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                         // LIVE must remain playing even if the controller or remote sends pause.
-                        if (isLive && !playWhenReady) this@PlayerActivity.player?.play()
+                        if (isLive && !playWhenReady) {
+                            this@PlayerActivity.player?.play()
+                        } else if (!isLive) {
+                            if (playWhenReady) scheduleStillWatchingPrompt()
+                            else cancelStillWatchingPrompt()
+                        }
                     }
                 })
             }
@@ -239,6 +247,40 @@ class PlayerActivity : Activity() {
     override fun onStart() {
         super.onStart()
         scheduleIntroCheck()
+        scheduleStillWatchingPrompt()
+    }
+
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        scheduleStillWatchingPrompt()
+    }
+
+    private fun scheduleStillWatchingPrompt() {
+        cancelStillWatchingPrompt()
+        if (isLive || isFinishing || player?.isPlaying != true) return
+        stillWatchingRunnable = Runnable {
+            stillWatchingRunnable = null
+            if (isFinishing || isLive || player?.isPlaying != true) return@Runnable
+            player?.pause()
+            val dialog = android.app.AlertDialog.Builder(this)
+                .setTitle("Ainda está assistindo?")
+                .setMessage("A reprodução está ativa há duas horas. Deseja continuar?")
+                .setPositiveButton("Continuar assistindo") { _, _ -> player?.play() }
+                .setNegativeButton("Pausar") { _, _ -> player?.pause() }
+                .create()
+            stillWatchingDialog = dialog
+            dialog.setOnCancelListener {
+                stillWatchingDialog = null
+                player?.play()
+            }
+            dialog.setOnDismissListener { stillWatchingDialog = null }
+            dialog.show()
+        }.also { handler.postDelayed(it, stillWatchingIntervalMs) }
+    }
+
+    private fun cancelStillWatchingPrompt() {
+        stillWatchingRunnable?.let(handler::removeCallbacks)
+        stillWatchingRunnable = null
     }
 
     private fun loadIntroMarkers() {
@@ -631,6 +673,9 @@ class PlayerActivity : Activity() {
         introCheckRunnable = null
         introPrompt?.dismiss()
         introPrompt = null
+        cancelStillWatchingPrompt()
+        stillWatchingDialog?.dismiss()
+        stillWatchingDialog = null
         super.onStop()
         if (!isLive) {
             val exo = player
@@ -654,6 +699,9 @@ class PlayerActivity : Activity() {
         introCheckRunnable = null
         introPrompt?.dismiss()
         introPrompt = null
+        cancelStillWatchingPrompt()
+        stillWatchingDialog?.dismiss()
+        stillWatchingDialog = null
         cancelNextEpisodeCountdown()
         playerView.player = null
         player?.release()
