@@ -7,26 +7,28 @@
 - [ ] Registrar inventário de licenças arquivo a arquivo antes de copiar módulos completos.
 
 ## Fase 1 — Playback mínimo
-- [x] Criar projeto Android Gradle com módulo Media3 e módulo Kotlin core (build ainda pendente de CI confirmado).
+- [x] Criar projeto Android Gradle com módulo Media3 e módulo Kotlin core (build e testes unitários confirmados em CI; validar novamente após mudanças recentes).
 - [x] Criar tela de teste com URL HTTP(S), reprodução e fontes alternativas.
 - [x] Consultar índice VOD e carregar prévias limitadas de filmes/séries/animes/doramas sem ler o catálogo inteiro.
-- [x] Abrir metadados de um título e extrair fontes diretas/episódios de forma incremental.
+- [x] Abrir metadados de um título, extrair fontes/episódios e preservar referências de provedores de forma incremental.
 - [x] Carregar prévia de rádios e permitir iniciar uma estação selecionada.
 - [ ] Implementar resolvedores de provedores para referências que não são URLs diretas ou que apontam para páginas embed.
 - [x] Implementar controles básicos do Media3, seleção de faixas de áudio/legendas e seletor de velocidade para VOD.
 - [x] Implementar política para ignorar pausa em LIVE e restauração inicial de posição VOD.
-- [ ] Confirmar compilação e reprodução de HLS, DASH e MP4 em aparelhos reais.
+- [x] Navegar temporadas, episódios e versões de áudio antes de iniciar a reprodução.
+- [ ] Confirmar reprodução de HLS, DASH e MP4 em aparelhos reais (a compilação/empacotamento já passou em CI).
 - [ ] Validar D-pad, voltar e restauração correta de foco.
 
 ## Fase 2 — Resiliência
 - [ ] Timeout configurável de início (padrão 15 s) e troca de fonte.
-- [ ] Buffer por perfil de memória e modo de baixo consumo.
-- [ ] Retomada persistente por item e episódio.
+- [x] Buffer por perfil automático/economia/desempenho, com valores reduzidos para aparelhos de pouca memória.
+- [x] Retomada persistente por item/episódio via armazenamento local.
 - [ ] Política LIVE separada de VOD; live nunca pausa.
 
 ## Fase 3 — Séries e integrações
 - [ ] PainelEpisodios com temporada/episódio.
-- [ ] Próximo episódio e preferência pelo mesmo provedor/fonte.
+- [x] Fila de próximos episódios com aviso de 10 s e autoplay quando existem URLs diretas.
+- [ ] Reutilizar automaticamente a fonte/provedor preferido no próximo episódio.
 - [ ] TheIntroDB para intro/recap, com fallback manual.
 - [ ] OpenSubtitles: idioma, tamanho, fundo e sincronização.
 
@@ -34,7 +36,7 @@
 - [ ] Cartão do próximo episódio e tela Mais como este.
 - [ ] Confirmação “Ainda está assistindo?” baseada em inatividade/configuração.
 - [ ] Cliente CineHUB-ACERVO com cache e atualização incremental.
-- [ ] Testes em TV Box 1 GB, Google TV e Fire TV.
+- [ ] Testes em TV Box 1 GB, Google TV e Fire TV (perfil de memória já configurável; falta validar em hardware).
 
 ## Critérios de aceite
 - Compila em CI.
