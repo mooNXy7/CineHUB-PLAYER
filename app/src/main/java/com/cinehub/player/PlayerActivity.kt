@@ -45,6 +45,13 @@ class PlayerActivity : Activity() {
     private var isLive = false
     private var contentId = "unknown"
     private var seriesId = ""
+    private var tmdbId = 0
+    private var seasonNumber = 0
+    private var episodeNumber = 0
+    private var introMarkers: List<IntroMarker> = emptyList()
+    private val promptedIntroMarkers = mutableSetOf<String>()
+    private var introCheckRunnable: Runnable? = null
+    private var introPrompt: android.app.AlertDialog? = null
     private var subtitleUrl: String? = null
     private var startupCheck: Runnable? = null
     private val handler = android.os.Handler(mainLooper)
@@ -71,6 +78,9 @@ class PlayerActivity : Activity() {
         isLive = intent.getBooleanExtra("live", false)
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         seriesId = intent.getStringExtra("series_id").orEmpty()
+        tmdbId = intent.getIntExtra("tmdb_id", 0).coerceAtLeast(0)
+        seasonNumber = intent.getIntExtra("season_number", 0).coerceAtLeast(0)
+        episodeNumber = intent.getIntExtra("episode_number", 0).coerceAtLeast(0)
         // Never pass an untrusted intent subtitle URI to Media3 (e.g. file:// or content://).
         subtitleUrl = intent.getStringExtra("subtitle_url")
             ?.trim()
@@ -222,6 +232,67 @@ class PlayerActivity : Activity() {
                 })
             }
         playSource(0)
+        loadIntroMarkers()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        scheduleIntroCheck()
+    }
+
+    private fun loadIntroMarkers() {
+        introMarkers = emptyList()
+        promptedIntroMarkers.clear()
+        if (isLive || tmdbId <= 0) return
+        IntroSkipClient.load(tmdbId, seasonNumber, episodeNumber) { markers ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                introMarkers = markers
+                scheduleIntroCheck()
+            }
+        }
+    }
+
+    private fun scheduleIntroCheck() {
+        if (isLive || introMarkers.isEmpty() || isFinishing || introCheckRunnable != null) return
+        introCheckRunnable = object : Runnable {
+            override fun run() {
+                if (isFinishing || isDestroyed || isLive) {
+                    introCheckRunnable = null
+                    return
+                }
+                val exo = player
+                if (exo?.playbackState == Player.STATE_READY && introPrompt?.isShowing != true) {
+                    val marker = IntroSkipPolicy.activeMarker(
+                        positionMs = exo.currentPosition,
+                        durationMs = exo.duration.takeIf { it > 0L } ?: 0L,
+                        markers = introMarkers,
+                        alreadyPrompted = promptedIntroMarkers
+                    )
+                    if (marker != null) {
+                        promptedIntroMarkers.add(marker.key)
+                        showIntroSkipPrompt(marker)
+                    }
+                }
+                handler.postDelayed(this, 1_000L)
+            }
+        }.also { handler.postDelayed(it, 1_000L) }
+    }
+
+    private fun showIntroSkipPrompt(marker: IntroMarker) {
+        val endMs = marker.endMs ?: return
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("Trecho detectado")
+            .setMessage("O TheIntroDB marcou uma ${marker.type.label}. Deseja pular este trecho?")
+            .setPositiveButton("Pular") { _, _ ->
+                player?.seekTo(endMs.coerceAtLeast(0L))
+                player?.playWhenReady = true
+            }
+            .setNegativeButton("Continuar", null)
+            .create()
+        introPrompt = dialog
+        dialog.setOnDismissListener { introPrompt = null }
+        dialog.show()
     }
 
     private fun parseEpisodeQueue(raw: String): List<QueuedEpisode> {
@@ -241,7 +312,10 @@ class PlayerActivity : Activity() {
                     add(QueuedEpisode(
                         item.optString("title", "Próximo episódio"),
                         item.optString("content_id", "episode-$index"),
-                        sources
+                        sources,
+                        item.optInt("tmdb_id", 0).coerceAtLeast(0),
+                        item.optInt("season", 0).coerceAtLeast(0),
+                        item.optInt("episode", 0).coerceAtLeast(0)
                     ))
                 }
             }
@@ -301,6 +375,10 @@ class PlayerActivity : Activity() {
         if (queueIndex !in episodeQueue.indices) return
         val next = episodeQueue[queueIndex++]
         contentId = next.contentId
+        tmdbId = next.tmdbId
+        seasonNumber = next.season
+        episodeNumber = next.episode
+        loadIntroMarkers()
         val preferredHost = if (seriesId.isNotBlank()) {
             getSharedPreferences("player-settings", MODE_PRIVATE)
                 .getString("preferred_source_host_$seriesId", null)
@@ -501,6 +579,10 @@ class PlayerActivity : Activity() {
     }
 
     override fun onStop() {
+        introCheckRunnable?.let(handler::removeCallbacks)
+        introCheckRunnable = null
+        introPrompt?.dismiss()
+        introPrompt = null
         super.onStop()
         if (!isLive) {
             val exo = player
@@ -520,6 +602,10 @@ class PlayerActivity : Activity() {
 
     override fun onDestroy() {
         startupCheck?.let(handler::removeCallbacks)
+        introCheckRunnable?.let(handler::removeCallbacks)
+        introCheckRunnable = null
+        introPrompt?.dismiss()
+        introPrompt = null
         cancelNextEpisodeCountdown()
         playerView.player = null
         player?.release()
