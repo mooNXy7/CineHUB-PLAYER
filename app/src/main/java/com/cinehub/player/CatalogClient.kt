@@ -194,16 +194,8 @@ object CatalogClient {
     ): List<PlaybackSource> = references.mapIndexedNotNull { index, reference ->
         val providerIndex = reference.provider.toIntOrNull() ?: return@mapIndexedNotNull null
         val base = bases[providerIndex] ?: return@mapIndexedNotNull null
-        val ref = reference.ref.trim()
-        if (ref.isBlank() || ref.contains("://") || ref.split('/').any { it == ".." }) {
-            return@mapIndexedNotNull null
-        }
-        // Match SaimoTV VodFormato: refs with an extension are used as-is; otherwise append .mp4.
-        val suffix = if (ref.contains('.')) ref else "$ref.mp4"
-        val url = base + suffix
-        val parsed = runCatching { URL(url) }.getOrNull() ?: return@mapIndexedNotNull null
-        if (parsed.protocol !in setOf("http", "https") ||
-            parsed.host.endsWith(".invalid", ignoreCase = true)) return@mapIndexedNotNull null
+        val url = ProviderUrlResolver.resolve(base, reference.ref)
+            ?: return@mapIndexedNotNull null
         PlaybackSource(
             url = url,
             audio = reference.audio,
