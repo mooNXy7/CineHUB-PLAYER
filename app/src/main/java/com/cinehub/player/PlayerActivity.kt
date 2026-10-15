@@ -55,6 +55,7 @@ class PlayerActivity : Activity() {
     private var contentId = "unknown"
     private var seriesId = ""
     private var catalogCategory = ""
+    private var catalogItemId = ""
     private var catalogGenres: List<String> = emptyList()
     private var tmdbId = 0
     private var seasonNumber = 0
@@ -101,6 +102,7 @@ class PlayerActivity : Activity() {
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         seriesId = intent.getStringExtra("series_id").orEmpty()
         catalogCategory = intent.getStringExtra("catalog_category").orEmpty()
+        catalogItemId = intent.getStringExtra("catalog_item_id").orEmpty()
         catalogGenres = intent.getStringArrayListExtra("catalog_genres")?.toList().orEmpty()
         tmdbId = intent.getIntExtra("tmdb_id", 0).coerceAtLeast(0)
         seasonNumber = intent.getIntExtra("season_number", 0).coerceAtLeast(0)
@@ -519,7 +521,7 @@ class PlayerActivity : Activity() {
         }
         CatalogClient.loadRelatedPreview(
             category = catalogCategory,
-            currentId = seriesId.ifBlank { contentId.substringBeforeLast('-', contentId) },
+            currentId = seriesId.ifBlank { catalogItemId.ifBlank { contentId } },
             genres = catalogGenres,
             limit = 8
         ) { result ->
