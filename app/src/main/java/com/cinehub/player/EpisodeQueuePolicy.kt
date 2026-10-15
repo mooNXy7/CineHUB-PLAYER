@@ -11,7 +11,8 @@ internal data class QueuedEpisode(
     val tmdbId: Int = 0,
     val season: Int = 0,
     val episode: Int = 0,
-    val posterUrl: String = ""
+    val posterUrl: String = "",
+    val sourceReferers: List<String> = emptyList()
 )
 
 internal object EpisodeQueuePolicy {
@@ -40,12 +41,13 @@ internal object EpisodeQueuePolicy {
             .mapNotNull { item ->
                 val id = item.contentId.trim().take(MAX_ID_LENGTH)
                 if (id.isBlank() || id in seenIds) return@mapNotNull null
-                val sources = item.sources.asSequence()
-                    .map(String::trim)
-                    .filter(PlaybackUrlPolicy::isSafeHttpUrl)
-                    .distinct()
-                    .take(MAX_SOURCES_PER_EPISODE)
-                    .toList()
+                val sourcePairs = item.sources.mapIndexedNotNull { index, rawUrl ->
+                    val url = rawUrl.trim()
+                    if (!PlaybackUrlPolicy.isSafeHttpUrl(url)) null
+                    else url to item.sourceReferers.getOrNull(index).orEmpty()
+                        .takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
+                }.distinctBy { it.first }.take(MAX_SOURCES_PER_EPISODE)
+                val sources = sourcePairs.map { it.first }
                 if (sources.isEmpty()) return@mapNotNull null
                 seenIds.add(id)
                 QueuedEpisode(
@@ -55,7 +57,8 @@ internal object EpisodeQueuePolicy {
                     tmdbId = item.tmdbId.coerceAtLeast(0),
                     season = item.season.coerceAtLeast(0),
                     episode = item.episode.coerceAtLeast(0),
-                    posterUrl = item.posterUrl.takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
+                    posterUrl = item.posterUrl.takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty(),
+                    sourceReferers = sourcePairs.map { it.second }
                 )
             }
             .take(MAX_EPISODES)
