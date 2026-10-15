@@ -19,6 +19,10 @@ object CatalogClient {
     private const val SAIMO_BASE =
         "https://raw.githubusercontent.com/gabrielsaimo/SaimoPlayer/main/"
     private val executor = Executors.newSingleThreadExecutor()
+    private data class CachedValue(val storedAtMs: Long, val value: Any)
+    private val catalogCache = LinkedHashMap<String, CachedValue>(16, 0.75f, true)
+    private const val CATALOG_CACHE_TTL_MS = 5 * 60 * 1000L
+    private const val CATALOG_CACHE_MAX_ENTRIES = 32
     @Volatile private var cachedProviderBases: Map<Int, String> = emptyMap()
     @Volatile private var providerBasesLoadedAt = 0L
     private const val PROVIDER_BASES_TTL_MS = 10 * 60 * 1000L
@@ -70,6 +74,39 @@ object CatalogClient {
         val tmdbId: Int = 0
     )
 
+    /**
+     * Bounded in-memory TTL cache for small catalog pages and individual details.
+     * If refresh fails, return the last valid value rather than breaking the UI.
+     */
+    private fun <T : Any> cachedResult(key: String, loader: () -> T): Result<T> {
+        readCached<T>(key, allowStale = false)?.let { return Result.success(it) }
+        val result = runCatching(loader)
+        result.getOrNull()?.let { value ->
+            synchronized(catalogCache) {
+                catalogCache[key] = CachedValue(System.currentTimeMillis(), value)
+                while (catalogCache.size > CATALOG_CACHE_MAX_ENTRIES) {
+                    val firstKey = catalogCache.entries.iterator().next().key
+                    catalogCache.remove(firstKey)
+                }
+            }
+        }
+        if (result.isFailure) {
+            readCached<T>(key, allowStale = true)?.let { return Result.success(it) }
+        }
+        return result
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> readCached(key: String, allowStale: Boolean): T? =
+        synchronized(catalogCache) {
+            val entry = catalogCache[key] ?: return@synchronized null
+            if (!allowStale && System.currentTimeMillis() - entry.storedAtMs > CATALOG_CACHE_TTL_MS) {
+                return@synchronized null
+            }
+            entry.value as? T
+        }
+
+
     /** Reject catalog entries that are HTML embed pages mislabeled as direct streams. */
     fun isDirectPlaybackSource(source: PlaybackSource): Boolean {
         if (source.sourceType.equals("embed", ignoreCase = true)) return false
@@ -84,7 +121,7 @@ object CatalogClient {
 
     fun loadVodIndex(onResult: (Result<CatalogIndex>) -> Unit) {
         executor.execute {
-            onResult(runCatching {
+            onResult(cachedResult("vod-index") {
                 val json = JSONObject(fetchText(BASE + "catalog/vod/index.json", 2 * 1024 * 1024))
                 val categoriesJson = json.getJSONObject("categories")
                 val categories = mutableMapOf<String, Pair<Int, String>>()
@@ -101,7 +138,7 @@ object CatalogClient {
 
     fun loadCategoryPreview(category: String, limit: Int = 40, onResult: (Result<List<CatalogEntry>>) -> Unit) {
         executor.execute {
-            onResult(runCatching {
+            onResult(cachedResult("category:${category.lowercase()}:${limit}") {
                 require(limit in 1..100) { "Preview limit must be between 1 and 100" }
                 val path = categoryPaths[category.lowercase()]
                     ?: error("Unknown catalog category: $category")
@@ -112,7 +149,7 @@ object CatalogClient {
 
     fun loadContentDetails(entry: CatalogEntry, onResult: (Result<ContentDetails>) -> Unit) {
         executor.execute {
-            onResult(runCatching {
+            onResult(cachedResult("details:${entry.id}") {
                 require(entry.detailPath.startsWith("catalog/vod/details/")) { "Invalid catalog detail path" }
                 // Some shard names begin with "#"; encode it so URL parsing does not treat it as a fragment.
                 val safePath = entry.detailPath.replace("#", "%23")
@@ -337,7 +374,7 @@ object CatalogClient {
      */
     fun loadChannelPreview(limit: Int = 60, onResult: (Result<List<ChannelEntry>>) -> Unit) {
         executor.execute {
-            onResult(runCatching {
+            onResult(cachedResult("channels:${limit}") {
                 require(limit in 1..100) { "Channel preview limit must be between 1 and 100" }
                 val connection = open(BASE + "catalog/channels/channels.json")
                 try {
@@ -424,7 +461,7 @@ object CatalogClient {
 
     fun loadRadioPreview(limit: Int = 50, onResult: (Result<List<RadioEntry>>) -> Unit) {
         executor.execute {
-            onResult(runCatching {
+            onResult(cachedResult("radios:${limit}") {
                 require(limit in 1..100) { "Radio preview limit must be between 1 and 100" }
                 val connection = open(BASE + "catalog/radios/radios.json")
                 try {
