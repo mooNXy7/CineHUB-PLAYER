@@ -35,7 +35,9 @@
 - [x] Reutilizar a última fonte bem-sucedida no próximo episódio quando o host aparece entre as opções.
 - [x] Normalizar a fila de episódios: remover IDs/URLs duplicados, filtrar URLs inseguras e limitar filas/fontes para proteger aparelhos com pouca memória.
 - [x] TheIntroDB: consulta assíncrona por TMDB ID e prompt para pular abertura/recap/prévia quando existem marcações válidas; falha da API não interrompe o vídeo.
-- [ ] OpenSubtitles: idioma, tamanho, fundo e sincronização.
+- [x] Busca de legendas OpenSubtitles por idioma, com mapeamento TMDB → IMDb por fragmento e fallback para URL manual.
+- [x] Ajuste visual básico de legenda (tamanho/fundo).
+- [ ] Sincronização fina do atraso de legendas.
 
 ## Fase 4 — Pós-reprodução e catálogo
 - [ ] Cartão do próximo episódio e tela Mais como este.
