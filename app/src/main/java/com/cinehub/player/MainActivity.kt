@@ -5,12 +5,14 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.HorizontalScrollView
+import android.widget.FrameLayout
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
@@ -35,7 +37,7 @@ class MainActivity : Activity() {
             setPadding(48, 32, 48, 32)
             isFocusableInTouchMode = true
         }
-        root.addView(content, ScrollView.LayoutParams(
+        root.addView(content, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
         ))
@@ -75,7 +77,7 @@ class MainActivity : Activity() {
         val categoriesScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
-            addView(categories, HorizontalScrollView.LayoutParams(
+            addView(categories, FrameLayout.LayoutParams(
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT,
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT
             ))
