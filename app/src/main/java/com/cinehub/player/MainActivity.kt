@@ -172,29 +172,13 @@ class MainActivity : Activity() {
             runOnUiThread {
                 result.fold(
                     onSuccess = { details ->
-                        val episodes = details.episodes
-                        if (episodes.isNotEmpty()) {
-                            val labels = episodes.map { episode ->
-                                "T" + episode.season + " · E" + episode.episode +
-                                    " · " + (if (episode.audio == "dub") "Dublado" else if (episode.audio == "leg") "Legendado" else episode.audio) +
-                                    " · " + episode.sources.count { CatalogClient.isDirectPlaybackSource(it) } + " fontes diretas"
-                            }.toTypedArray()
-                            android.app.AlertDialog.Builder(this)
-                                .setTitle(details.title + " · Episódios")
-                                .setItems(labels) { _, index ->
-                                    val episode = episodes[index]
-                                    choosePlaybackSources(
-                                        details.title + " · T" + episode.season + "E" + episode.episode,
-                                        episode.sources.filter { CatalogClient.isDirectPlaybackSource(it) }.map { it.url },
-                                        details.id + "-" + episode.season + "-" + episode.episode
-                                    )
-                                }
-                                .setNegativeButton("Fechar", null)
-                                .show()
+                        if (details.episodes.isNotEmpty()) {
+                            showSeasonPicker(details)
                         } else {
                             choosePlaybackSources(
                                 details.title,
-                                details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }.map { it.url },
+                                details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                                    .sortedBy { it.priority }.map { it.url },
                                 details.id
                             )
                         }
@@ -205,6 +189,97 @@ class MainActivity : Activity() {
                 )
             }
         }
+    }
+
+    /** TV-friendly drill-down: season -> episode -> audio/version -> source failover. */
+    private fun showSeasonPicker(details: CatalogClient.ContentDetails) {
+        val seasons = details.episodes.map { it.season }.distinct().sorted()
+        if (seasons.isEmpty()) {
+            status.text = "Este título não possui episódios publicados."
+            return
+        }
+        val labels = seasons.map { "Temporada $it · " + details.episodes.count { ep -> ep.season == it }.let { count -> "$count faixas de áudio/episódio" } }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(details.title + " · Temporadas")
+            .setItems(labels.toTypedArray()) { _, index ->
+                showEpisodePicker(details, seasons[index])
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun showEpisodePicker(details: CatalogClient.ContentDetails, season: Int) {
+        val episodes = details.episodes.filter { it.season == season }
+            .map { it.episode }.filter { it > 0 }.distinct().sorted()
+        if (episodes.isEmpty()) {
+            android.app.AlertDialog.Builder(this).setTitle("Temporada $season")
+                .setMessage("Nenhum episódio listado nesta temporada.")
+                .setPositiveButton("OK", null).show()
+            return
+        }
+        val labels = episodes.map { number ->
+            val variants = details.episodes.filter { it.season == season && it.episode == number }
+                .map { audioLabel(it.audio) }.distinct()
+            "Episódio $number" + if (variants.isNotEmpty()) " · " + variants.joinToString(" / ") else ""
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle(details.title + " · Temporada $season")
+            .setItems(labels.toTypedArray()) { _, index ->
+                showEpisodeVersionPicker(details, season, episodes[index])
+            }
+            .setNegativeButton("Voltar", null)
+            .show()
+    }
+
+    private fun showEpisodeVersionPicker(
+        details: CatalogClient.ContentDetails,
+        season: Int,
+        episodeNumber: Int
+    ) {
+        val variants = details.episodes.filter {
+            it.season == season && it.episode == episodeNumber
+        }.sortedBy { it.sources.minOfOrNull { source -> source.priority } ?: Int.MAX_VALUE }
+
+        if (variants.isEmpty()) return
+        val labels = variants.map { variant ->
+            val direct = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+            audioLabel(variant.audio) + " · " + direct.size + " fontes diretas"
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("T$season · E$episodeNumber · Áudio")
+            .setItems(labels.toTypedArray()) { _, index ->
+                val variant = variants[index]
+                val direct = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                    .sortedBy { it.priority }.map { it.url }.distinct()
+                val id = details.id + "-" + season + "-" + episodeNumber + "-" + variant.audio
+                if (direct.isEmpty()) {
+                    val references = variant.sources.size
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle(details.title + " · T$season E$episodeNumber")
+                        .setMessage(
+                            "Esta versão (${audioLabel(variant.audio)}) ainda não tem URL direta compatível. " +
+                            if (references > 0) "O catálogo lista páginas de provedor, que precisam de um resolvedor específico; não vou tratá-las como vídeo direto."
+                            else "O acervo ainda não publicou fontes para esta versão."
+                        )
+                        .setPositiveButton("OK", null)
+                        .show()
+                } else {
+                    choosePlaybackSources(
+                        details.title + " · T$season E$episodeNumber · " + audioLabel(variant.audio),
+                        direct,
+                        id
+                    )
+                }
+            }
+            .setNegativeButton("Voltar", null)
+            .show()
+    }
+
+    private fun audioLabel(audio: String): String = when (audio.lowercase()) {
+        "dub", "dublado", "pt", "pt-br" -> "Dublado"
+        "leg", "legendado", "sub" -> "Legendado"
+        "", "null" -> "Áudio não informado"
+        else -> audio.uppercase()
     }
 
     private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String) {
