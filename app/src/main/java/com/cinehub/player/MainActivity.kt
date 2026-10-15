@@ -60,6 +60,10 @@ class MainActivity : Activity() {
             })
         }
         root.addView(categories)
+        root.addView(Button(this).apply {
+            text = "CARREGAR RÁDIOS DO CINEHUB-ACERVO"
+            setOnClickListener { showRadioPicker() }
+        })
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
             setSingleLine(true)
@@ -96,6 +100,41 @@ class MainActivity : Activity() {
             putExtra("live", live)
             putExtra("content_id", url.hashCode().toString())
         })
+    }
+
+    private fun showRadioPicker() {
+        status.text = "Carregando rádios em modo econômico…"
+        CatalogClient.loadRadioPreview(60) { result ->
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { radios ->
+                        if (radios.isEmpty()) {
+                            status.text = "Nenhuma rádio com URL válida foi encontrada."
+                            return@fold
+                        }
+                        val labels = radios.map { radio ->
+                            if (radio.genre.isNotBlank()) radio.name + " · " + radio.genre else radio.name
+                        }.toTypedArray()
+                        status.text = "Rádios carregadas: ${radios.size}. Selecione uma para ouvir."
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Rádios CineHUB")
+                            .setItems(labels) { _, index ->
+                                val radio = radios[index]
+                                startActivity(Intent(this, PlayerActivity::class.java).apply {
+                                    putExtra("url", radio.streamUrl)
+                                    putExtra("live", true)
+                                    putExtra("content_id", radio.id)
+                                })
+                            }
+                            .setNegativeButton("Fechar", null)
+                            .show()
+                    },
+                    onFailure = { error ->
+                        status.text = "Falha ao carregar rádios: " + (error.message ?: "erro desconhecido")
+                    }
+                )
+            }
+        }
     }
 
     private fun showCategoryPreview(category: String, label: String) {
