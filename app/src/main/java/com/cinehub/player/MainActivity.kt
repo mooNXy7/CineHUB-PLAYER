@@ -282,12 +282,13 @@ class MainActivity : Activity() {
                     .sortedBy { it.priority }.map { it.url }.distinct()
                 val id = details.id + "-" + season + "-" + episodeNumber + "-" + variant.audio
                 if (direct.isEmpty()) {
-                    val references = variant.sources.size
+                    val references = variant.providerRefs.size
                     android.app.AlertDialog.Builder(this)
                         .setTitle(details.title + " · T$season E$episodeNumber")
                         .setMessage(
                             "Esta versão (${audioLabel(variant.audio)}) ainda não tem URL direta compatível. " +
-                            if (references > 0) "O catálogo lista páginas de provedor, que precisam de um resolvedor específico; não vou tratá-las como vídeo direto."
+                            if (references > 0) "O acervo preservou $references referências de provedor. Falta ligar o resolvedor correspondente; não vou tratá-las como vídeo direto."
+                            else if (variant.sources.isNotEmpty()) "As URLs publicadas são páginas de provedor, não fluxos de vídeo diretos."
                             else "O acervo ainda não publicou fontes para esta versão."
                         )
                         .setPositiveButton("OK", null)
