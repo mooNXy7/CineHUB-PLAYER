@@ -53,6 +53,7 @@ class PlayerActivity : Activity() {
     private var introCheckRunnable: Runnable? = null
     private var introPrompt: android.app.AlertDialog? = null
     private var subtitleUrl: String? = null
+    private var subtitleMimeTypeOverride: String? = null
     private var startupCheck: Runnable? = null
     private val handler = android.os.Handler(mainLooper)
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
@@ -470,8 +471,8 @@ class PlayerActivity : Activity() {
     private fun buildMediaItem(url: String): MediaItem {
         val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
         subtitleUrl?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)?.let { subtitle ->
-            val lower = subtitle.substringBefore('?').lowercase()
-            val mime = when {
+            val lower = subtitle.substringBefore('?').substringBefore('#').lowercase()
+            val mime = subtitleMimeTypeOverride ?: when {
                 lower.endsWith(".srt") -> "application/x-subrip"
                 lower.endsWith(".vtt") -> "text/vtt"
                 lower.endsWith(".ssa") || lower.endsWith(".ass") -> "text/x-ssa"
@@ -540,7 +541,7 @@ class PlayerActivity : Activity() {
                 android.app.AlertDialog.Builder(this)
                     .setTitle("Legendas online · OpenSubtitles")
                     .setItems(labels) { _, index ->
-                        options.getOrNull(index)?.let { applyExternalSubtitle(it.url) }
+                        options.getOrNull(index)?.let { applyExternalSubtitle(it.url, "application/x-subrip") }
                     }
                     .setNeutralButton("Inserir URL") { _, _ -> promptExternalSubtitle() }
                     .setNegativeButton("Fechar", null)
@@ -566,13 +567,14 @@ class PlayerActivity : Activity() {
             .show()
     }
 
-    private fun applyExternalSubtitle(candidate: String) {
+    private fun applyExternalSubtitle(candidate: String, mimeTypeOverride: String? = null) {
         if (!PlaybackUrlPolicy.isSafeHttpUrl(candidate)) {
             Toast.makeText(this, "Informe uma URL HTTP(S) válida, com host e sem credenciais.", Toast.LENGTH_SHORT).show()
             return
         }
         val url = sourceUrls.getOrNull(currentIndex) ?: return
         subtitleUrl = candidate
+        subtitleMimeTypeOverride = mimeTypeOverride
         val position = player?.currentPosition ?: 0L
         player?.setMediaItem(buildMediaItem(url), position)
         player?.prepare()
