@@ -168,7 +168,12 @@ object CatalogClient {
                             .distinctBy { it.url }.sortedBy { it.priority }
                     )
                 }
-                details.copy(sources = directSources, episodes = episodes)
+                details.copy(
+                    sources = directSources,
+                    episodes = episodes,
+                    genres = details.genres.ifEmpty { entry.genres },
+                    subtype = details.subtype.ifBlank { entry.subtype }
+                )
             })
         }
     }
