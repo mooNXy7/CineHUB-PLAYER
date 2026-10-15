@@ -12,7 +12,8 @@
 - [x] Consultar índice VOD e carregar prévias limitadas de filmes/séries/animes/doramas sem ler o catálogo inteiro.
 - [x] Abrir metadados de um título, extrair fontes/episódios e preservar referências de provedores de forma incremental.
 - [x] Carregar prévia de rádios e permitir iniciar uma estação selecionada.
-- [ ] Implementar resolvedores de provedores para referências que não são URLs diretas ou que apontam para páginas embed.
+- [x] Resolver referências indexadas do SaimoPlayer por meio de `vod/indice.txt` e montar URLs candidatas de mídia.
+- [ ] Implementar resolvedores específicos para páginas embed, cabeçalhos exigidos por provedores e formatos especiais.
 - [x] Implementar controles básicos do Media3, seleção de faixas de áudio/legendas e seletor de velocidade para VOD.
 - [x] Implementar política para ignorar pausa em LIVE e restauração inicial de posição VOD.
 - [x] Navegar temporadas, episódios e versões de áudio antes de iniciar a reprodução.
