@@ -32,6 +32,7 @@ import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Minimal native playback shell. Launch with:
@@ -53,6 +54,8 @@ class PlayerActivity : Activity() {
     private var radioExperience: RadioExperienceView? = null
     private var contentId = "unknown"
     private var seriesId = ""
+    private var catalogCategory = ""
+    private var catalogGenres: List<String> = emptyList()
     private var tmdbId = 0
     private var seasonNumber = 0
     private var episodeNumber = 0
@@ -97,6 +100,8 @@ class PlayerActivity : Activity() {
         radioGenre = intent.getStringExtra("radio_genre")?.trim().orEmpty()
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         seriesId = intent.getStringExtra("series_id").orEmpty()
+        catalogCategory = intent.getStringExtra("catalog_category").orEmpty()
+        catalogGenres = intent.getStringArrayListExtra("catalog_genres")?.toList().orEmpty()
         tmdbId = intent.getIntExtra("tmdb_id", 0).coerceAtLeast(0)
         seasonNumber = intent.getIntExtra("season_number", 0).coerceAtLeast(0)
         episodeNumber = intent.getIntExtra("episode_number", 0).coerceAtLeast(0)
@@ -291,7 +296,7 @@ class PlayerActivity : Activity() {
                                 if (this@PlayerActivity.player?.isPlaying == true) scheduleStillWatchingPrompt()
                             }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
-                            showNextEpisodePrompt()
+                            if (queueIndex < episodeQueue.size) showNextEpisodePrompt() else showMoreLikeThis()
                         } else if (playbackState == Player.STATE_ENDED && isLive) {
                             // LIVE feeds can end cleanly at protocol level while the source is dead.
                             // Treat that as a source failure and try the next known endpoint.
@@ -500,6 +505,74 @@ class PlayerActivity : Activity() {
             }
             .setNegativeButton("Voltar", if (season == null) null else { _, _ -> showSeasonQueuePicker() })
             .show()
+    }
+
+    private fun showMoreLikeThis() {
+        if (catalogCategory.isBlank() || catalogGenres.isEmpty()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Mais como este")
+                .setMessage("Este item ainda não tem gêneros suficientes no catálogo para montar recomendações.")
+                .setPositiveButton("Fechar player") { _, _ -> finish() }
+                .setNegativeButton("Continuar no player", null)
+                .show()
+            return
+        }
+        CatalogClient.loadRelatedPreview(
+            category = catalogCategory,
+            currentId = seriesId.ifBlank { contentId.substringBeforeLast('-', contentId) },
+            genres = catalogGenres,
+            limit = 8
+        ) { result ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { entries ->
+                        if (entries.isEmpty()) {
+                            android.app.AlertDialog.Builder(this)
+                                .setTitle("Mais como este")
+                                .setMessage("Não encontrei títulos relacionados nesta prévia do catálogo.")
+                                .setPositiveButton("Fechar player") { _, _ -> finish() }
+                                .setNegativeButton("Continuar no player", null)
+                                .show()
+                            return@fold
+                        }
+                        val labels = entries.map { entry ->
+                            buildString {
+                                append(entry.title)
+                                if (entry.year.isNotBlank()) append(" (").append(entry.year).append(')')
+                                if (entry.genres.isNotEmpty()) append(" · ").append(entry.genres.take(2).joinToString(" / "))
+                            }
+                        }.toTypedArray()
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Mais como este · CineHUB")
+                            .setItems(labels) { _, index ->
+                                val entry = entries.getOrNull(index) ?: return@setItems
+                                val payload = JSONObject().apply {
+                                    put("id", entry.id)
+                                    put("title", entry.title)
+                                    put("type", entry.type)
+                                    put("detail_path", entry.detailPath)
+                                    put("poster_url", entry.posterPath)
+                                    put("year", entry.year)
+                                    put("subtype", entry.subtype)
+                                    put("genres", JSONArray(entry.genres))
+                                }
+                                startActivity(Intent(this, MainActivity::class.java).putExtra("open_detail_json", payload.toString()))
+                            }
+                            .setNeutralButton("Fechar player") { _, _ -> finish() }
+                            .setNegativeButton("Voltar", null)
+                            .show()
+                    },
+                    onFailure = { error ->
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Mais como este")
+                            .setMessage("O catálogo não respondeu: " + (error.message ?: "erro desconhecido"))
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                )
+            }
+        }
     }
 
     private fun showNextEpisodePrompt() {
