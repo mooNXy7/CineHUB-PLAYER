@@ -4,7 +4,7 @@ import java.util.Locale
 
 /** Shifts SRT/WebVTT cue timestamps without changing cue text or metadata. */
 internal object SubtitleSyncPolicy {
-    private val timestampPattern = Regex("""(?<!\\d)(?:\\d{1,2}:)?\\d{2}:\\d{2}[,.]\\d{3}(?!\\d)""")
+    private val timestampPattern = Regex("""(?<!\d)(?:\d{1,2}:)?\d{2}:\d{2}[,.]\d{3}(?!\d)""")
 
     fun shiftTimestamps(text: String, offsetMs: Long): String {
         if (offsetMs == 0L || text.isEmpty()) return text
