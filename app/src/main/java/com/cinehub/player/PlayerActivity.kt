@@ -1,6 +1,7 @@
 package com.cinehub.player
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.net.Uri
 import android.graphics.Color
 import android.text.InputType
@@ -115,14 +116,27 @@ class PlayerActivity : Activity() {
             return
         }
 
-        val lowMemory = Runtime.getRuntime().maxMemory() < 256L * 1024L * 1024L
+        val profile = getSharedPreferences("player-settings", MODE_PRIVATE)
+            .getString("memory_profile", "auto") ?: "auto"
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val memoryInfo = ActivityManager.MemoryInfo()
+        activityManager.getMemoryInfo(memoryInfo)
+        // Use device memory, not the app heap cap: a 1 GB TV box can have a larger heap.
+        val lowMemory = when (profile) {
+            "low" -> true
+            "normal" -> false
+            else -> activityManager.isLowRamDevice ||
+                memoryInfo.totalMem <= 1_536L * 1024L * 1024L
+        }
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                if (lowMemory) 5_000 else 10_000,
-                if (lowMemory) 20_000 else 45_000,
-                1_000,
-                2_000
-            ).build()
+                if (lowMemory) 2_500 else 5_000,
+                if (lowMemory) 12_000 else 30_000,
+                if (lowMemory) 750 else 1_000,
+                if (lowMemory) 1_500 else 2_000
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
 
         player = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
