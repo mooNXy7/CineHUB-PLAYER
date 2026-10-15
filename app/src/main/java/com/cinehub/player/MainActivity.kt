@@ -143,11 +143,19 @@ class MainActivity : Activity() {
             runOnUiThread {
                 result.fold(
                     onSuccess = { entries ->
-                        val titles = entries.joinToString("\n") { entry ->
-                            if (entry.year.isNotBlank()) entry.title + " (" + entry.year + ")" else entry.title
+                        if (entries.isEmpty()) {
+                            status.text = "Nenhum item encontrado em $label."
+                            return@fold
                         }
-                        status.text = "$label · prévia de ${entries.size} itens\n" + titles
-                        status.setTextColor(Color.WHITE)
+                        val labels = entries.map { entry ->
+                            if (entry.year.isNotBlank()) entry.title + " (" + entry.year + ")" else entry.title
+                        }.toTypedArray()
+                        status.text = "$label · prévia de ${entries.size} itens"
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle(label)
+                            .setItems(labels) { _, index -> showContentDetails(entries[index]) }
+                            .setNegativeButton("Fechar", null)
+                            .show()
                     },
                     onFailure = { error ->
                         status.text = "Não foi possível carregar $label: " + (error.message ?: "erro desconhecido")
@@ -156,6 +164,64 @@ class MainActivity : Activity() {
                 )
             }
         }
+    }
+
+    private fun showContentDetails(entry: CatalogClient.CatalogEntry) {
+        status.text = "Consultando fontes e episódios de ${entry.title}…"
+        CatalogClient.loadContentDetails(entry) { result ->
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { details ->
+                        val episodes = details.episodes
+                        if (episodes.isNotEmpty()) {
+                            val labels = episodes.map { episode ->
+                                "T" + episode.season + " · E" + episode.episode +
+                                    " · " + (if (episode.audio == "dub") "Dublado" else if (episode.audio == "leg") "Legendado" else episode.audio) +
+                                    " · " + episode.sources.count { it.sourceType != "embed" } + " fontes diretas"
+                            }.toTypedArray()
+                            android.app.AlertDialog.Builder(this)
+                                .setTitle(details.title + " · Episódios")
+                                .setItems(labels) { _, index ->
+                                    val episode = episodes[index]
+                                    choosePlaybackSources(
+                                        details.title + " · T" + episode.season + "E" + episode.episode,
+                                        episode.sources.filter { it.sourceType != "embed" }.map { it.url },
+                                        details.id + "-" + episode.season + "-" + episode.episode
+                                    )
+                                }
+                                .setNegativeButton("Fechar", null)
+                                .show()
+                        } else {
+                            choosePlaybackSources(
+                                details.title,
+                                details.sources.filter { it.sourceType != "embed" }.map { it.url },
+                                details.id
+                            )
+                        }
+                    },
+                    onFailure = { error ->
+                        status.text = "Não foi possível abrir os detalhes: " + (error.message ?: "erro desconhecido")
+                    }
+                )
+            }
+        }
+    }
+
+    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String) {
+        val uniqueUrls = urls.distinct()
+        if (uniqueUrls.isEmpty()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage("O acervo tem metadados para este item, mas ainda não publicou uma URL direta compatível com o player. Fontes do tipo embed precisam de um resolvedor específico.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+        startActivity(Intent(this, PlayerActivity::class.java).apply {
+            putStringArrayListExtra("sources", ArrayList(uniqueUrls))
+            putExtra("content_id", contentId)
+            putExtra("live", false)
+        })
     }
 
     private fun loadCatalogStatus() {
