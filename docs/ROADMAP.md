@@ -44,7 +44,8 @@
 ## Fase 4 — Pós-reprodução e catálogo
 - [ ] Cartão visual do próximo episódio e recomendações reais por metadados (o aviso/autoplay de próximo episódio já existe, mas ainda não é o cartão visual).
 - [x] Confirmação “Ainda está assistindo?” após duas horas sem interação em VOD; pausa o vídeo e permite continuar ou manter pausado.
-- [ ] Cache persistente em disco e atualização incremental. Já existe cache em memória com TTL de 5 min, limite de 32 entradas e fallback para dados antigos quando a rede falha; prévias de VOD, rádios e canais são limitadas.
+- [x] Cache em disco para índice e prévias limitadas de VOD, rádios e canais, com TTL de 5 min, limite de 32 entradas em memória e fallback para dados antigos quando a rede falha.
+- [ ] Cache persistente de detalhes e atualização incremental por versão/ETag; o cache atual não persiste detalhes de episódios.
 - [ ] Testes em TV Box 1 GB, Google TV e Fire TV (perfil de memória já configurável; falta validar em hardware).
 
 ## Critérios de aceite
