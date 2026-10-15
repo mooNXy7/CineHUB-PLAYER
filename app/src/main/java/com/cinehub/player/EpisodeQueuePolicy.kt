@@ -19,6 +19,20 @@ internal object EpisodeQueuePolicy {
     private const val MAX_TITLE_LENGTH = 180
     private const val MAX_ID_LENGTH = 240
 
+    /** Returns a bounded window start that always contains the selected episode. */
+    fun windowStart(
+        totalEpisodes: Int,
+        currentIndex: Int,
+        maxEpisodes: Int = MAX_EPISODES,
+        historyEpisodes: Int = 20
+    ): Int? {
+        if (totalEpisodes <= 0 || currentIndex !in 0 until totalEpisodes ||
+            maxEpisodes <= 0 || historyEpisodes < 0
+        ) return null
+        return (currentIndex - historyEpisodes).coerceAtLeast(0)
+            .coerceAtMost((totalEpisodes - maxEpisodes).coerceAtLeast(0))
+    }
+
     fun normalize(items: List<QueuedEpisode>): List<QueuedEpisode> {
         val seenIds = mutableSetOf<String>()
         return items.asSequence()
