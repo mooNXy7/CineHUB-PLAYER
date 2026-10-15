@@ -1010,7 +1010,7 @@ class PlayerActivity : Activity() {
         }
         val now = System.currentTimeMillis()
         resolvedEmbedProviderUrls[pageUrl]?.let { (savedAt, result) ->
-            if (now - savedAt < 90 * 60 * 1000L) return result
+            if (now - savedAt < 10 * 60 * 1000L) return result
         }
         val pageHost = runCatching { URL(pageUrl).host.lowercase() }.getOrDefault("")
         val rootReferer = if (pageHost.contains("mgeb.top")) "https://mgeb.top/" else "https://nhdapi.com/"
