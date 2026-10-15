@@ -1,28 +1,47 @@
 package com.cinehub.player
 
+import android.util.JsonReader
+import android.util.JsonToken
 import org.json.JSONObject
+import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
 /**
- * Small asynchronous client for the public CineHUB-ACERVO JSON indices.
- * Uses bounded HTTP timeouts and never downloads individual VOD detail pages here.
+ * Low-memory client for public CineHUB-ACERVO JSON indexes.
+ * Large catalog arrays are read incrementally; previews stop after a small page.
  */
 object CatalogClient {
     private const val BASE =
         "https://raw.githubusercontent.com/mooNXy7/CineHUB-ACERVO/main/"
     private val executor = Executors.newSingleThreadExecutor()
+    private val categoryPaths = mapOf(
+        "movies" to "catalog/vod/index/movies.json",
+        "series" to "catalog/vod/index/series.json",
+        "anime" to "catalog/vod/index/anime.json",
+        "doramas" to "catalog/vod/index/doramas.json"
+    )
 
     data class CatalogIndex(
         val schemaVersion: Int,
         val categories: Map<String, Pair<Int, String>>
     )
 
+    data class CatalogEntry(
+        val id: String,
+        val title: String,
+        val type: String,
+        val detailPath: String,
+        val posterPath: String,
+        val year: String
+    )
+
     fun loadVodIndex(onResult: (Result<CatalogIndex>) -> Unit) {
         executor.execute {
             onResult(runCatching {
-                val json = JSONObject(fetch(BASE + "catalog/vod/index.json"))
+                val json = JSONObject(fetchText(BASE + "catalog/vod/index.json", 2 * 1024 * 1024))
                 val categoriesJson = json.getJSONObject("categories")
                 val categories = mutableMapOf<String, Pair<Int, String>>()
                 val keys = categoriesJson.keys()
@@ -36,26 +55,98 @@ object CatalogClient {
         }
     }
 
-    fun loadRadios(onResult: (Result<String>) -> Unit) {
+    fun loadCategoryPreview(category: String, limit: Int = 40, onResult: (Result<List<CatalogEntry>>) -> Unit) {
         executor.execute {
-            onResult(runCatching { fetch(BASE + "catalog/radios/radios.json") })
+            onResult(runCatching {
+                require(limit in 1..100) { "Preview limit must be between 1 and 100" }
+                val path = categoryPaths[category.lowercase()]
+                    ?: error("Unknown catalog category: $category")
+                readArrayPreview(BASE + path, limit)
+            })
         }
     }
 
-    private fun fetch(address: String): String {
-        val connection = (URL(address).openConnection() as HttpURLConnection).apply {
+    fun loadRadios(onResult: (Result<String>) -> Unit) {
+        executor.execute {
+            onResult(runCatching { fetchText(BASE + "catalog/radios/radios.json", 8 * 1024 * 1024) })
+        }
+    }
+
+    private fun readArrayPreview(address: String, limit: Int): List<CatalogEntry> {
+        val connection = open(address)
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) error("Catálogo respondeu HTTP $status")
+            val reader = JsonReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+            reader.isLenient = false
+            val entries = ArrayList<CatalogEntry>(limit)
+            reader.beginArray()
+            while (reader.hasNext() && entries.size < limit) {
+                var id = ""
+                var title = ""
+                var type = ""
+                var detailPath = ""
+                var posterPath = ""
+                var year = ""
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    when (reader.nextName()) {
+                        "id" -> id = readNullableString(reader)
+                        "title" -> title = readNullableString(reader)
+                        "type" -> type = readNullableString(reader)
+                        "detail_path" -> detailPath = readNullableString(reader)
+                        "poster_url" -> posterPath = readNullableString(reader)
+                        "year" -> year = readNullableString(reader)
+                        else -> reader.skipValue()
+                    }
+                }
+                reader.endObject()
+                if (title.isNotBlank()) entries.add(CatalogEntry(id, title, type, detailPath, posterPath, year))
+            }
+            reader.close()
+            return entries
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun readNullableString(reader: JsonReader): String =
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            ""
+        } else {
+            reader.nextString()
+        }
+
+    private fun fetchText(address: String, maxBytes: Int): String {
+        val connection = open(address)
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) error("Catálogo respondeu HTTP $status")
+            val output = StringBuilder()
+            connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { input ->
+                val buffer = CharArray(8192)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > maxBytes) error("Resposta do catálogo excede o limite permitido")
+                    output.append(buffer, 0, count)
+                }
+            }
+            return output.toString()
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun open(address: String): HttpURLConnection =
+        (URL(address).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8_000
             readTimeout = 12_000
             requestMethod = "GET"
             setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "CineHUB-PLAYER/0.1")
         }
-        return try {
-            val status = connection.responseCode
-            if (status !in 200..299) error("Catálogo respondeu HTTP $status")
-            connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        } finally {
-            connection.disconnect()
-        }
-    }
 }
