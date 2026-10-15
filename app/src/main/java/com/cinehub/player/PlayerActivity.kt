@@ -68,7 +68,7 @@ class PlayerActivity : Activity() {
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
     private lateinit var speedButton: Button
-    private var subtitleLarge = false
+    private var subtitleSizeSp = 22f
     private var subtitleBackground = true
     private var episodeQueue: List<QueuedEpisode> = emptyList()
     private var queueIndex = 0
@@ -149,7 +149,7 @@ class PlayerActivity : Activity() {
             controls.addView(Button(this).apply {
                 text = "Estilo legenda"
                 contentDescription = "Alterar tamanho e fundo da legenda"
-                setOnClickListener { cycleSubtitleStyle() }
+                setOnClickListener { showSubtitleStyleOptions() }
             })
             if (!isLive && episodeQueue.isNotEmpty()) {
                 controls.addView(Button(this).apply {
@@ -717,11 +717,36 @@ class PlayerActivity : Activity() {
         return itemBuilder.build()
     }
 
-    private fun cycleSubtitleStyle() {
-        subtitleLarge = !subtitleLarge
-        subtitleBackground = !subtitleBackground
+    private fun showSubtitleStyleOptions() {
+        val choices = arrayOf(
+            "Tamanho pequeno · 18 sp",
+            "Tamanho padrão · 22 sp",
+            "Tamanho grande · 28 sp",
+            "Fundo da legenda: ${if (subtitleBackground) "ligado" else "desligado"}"
+        )
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Aparência das legendas")
+            .setItems(choices) { _, index ->
+                when (index) {
+                    0 -> subtitleSizeSp = 18f
+                    1 -> subtitleSizeSp = 22f
+                    2 -> subtitleSizeSp = 28f
+                    3 -> subtitleBackground = !subtitleBackground
+                }
+                applySubtitleStyle()
+                Toast.makeText(
+                    this,
+                    "Legenda: ${subtitleSizeSp.toInt()} sp · fundo ${if (subtitleBackground) "ligado" else "desligado"}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun applySubtitleStyle() {
         playerView.subtitleView?.apply {
-            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, if (subtitleLarge) 26f else 20f)
+            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, subtitleSizeSp)
             setStyle(
                 CaptionStyleCompat(
                     Color.WHITE,
@@ -733,11 +758,6 @@ class PlayerActivity : Activity() {
                 )
             )
         }
-        Toast.makeText(
-            this,
-            if (subtitleLarge) "Legenda grande · fundo ligado" else "Legenda padrão · fundo desligado",
-            Toast.LENGTH_SHORT
-        ).show()
     }
 
     private fun showSubtitleOptions() {
