@@ -2,18 +2,25 @@ package com.cinehub.player
 
 import android.app.Activity
 import android.net.Uri
+import android.graphics.Color
+import android.view.Gravity
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
+import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Toast
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TrackSelectionDialogBuilder
 
 /**
  * Minimal native playback shell. Launch with:
@@ -32,6 +39,9 @@ class PlayerActivity : Activity() {
     private var subtitleUrl: String? = null
     private var startupCheck: Runnable? = null
     private val handler = android.os.Handler(mainLooper)
+    private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+    private var speedIndex = 1
+    private lateinit var speedButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,7 +64,34 @@ class PlayerActivity : Activity() {
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             keepScreenOn = true
         }
-        setContentView(FrameLayout(this).apply { addView(playerView) })
+        val root = FrameLayout(this)
+        root.addView(playerView, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT
+        ))
+        val controls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(12, 8, 12, 8)
+            setBackgroundColor(Color.argb(190, 20, 20, 20))
+        }
+        controls.addView(Button(this).apply {
+            text = "Áudio / Legendas"
+            contentDescription = "Selecionar faixas de áudio e legendas"
+            setOnClickListener { showTrackMenu() }
+        })
+        speedButton = Button(this).apply {
+            text = "Velocidade 1.0×"
+            contentDescription = "Alterar velocidade de reprodução"
+            setOnClickListener { cycleSpeed() }
+        }
+        controls.addView(speedButton)
+        root.addView(controls, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        ))
+        setContentView(root)
 
         if (sourceUrls.isEmpty()) {
             Toast.makeText(this, "Nenhuma fonte de reprodução recebida.", Toast.LENGTH_LONG).show()
@@ -100,6 +137,40 @@ class PlayerActivity : Activity() {
                 })
             }
         playSource(0)
+    }
+
+    private fun showTrackMenu() {
+        val exo = player ?: return
+        val options = listOf(
+            Triple("Áudio", C.TRACK_TYPE_AUDIO, false),
+            Triple("Legendas", C.TRACK_TYPE_TEXT, false)
+        ).filter { (_, type, _) -> exo.currentTracks.groups.any { it.type == type && it.length > 0 } }
+        if (options.isEmpty()) {
+            Toast.makeText(this, "Não há faixas alternativas disponíveis nesta fonte.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Faixas de reprodução")
+            .setItems(options.map { it.first }.toTypedArray()) { _, index ->
+                val (title, type, adaptive) = options[index]
+                TrackSelectionDialogBuilder(this, title, exo, type)
+                    .setAllowAdaptiveSelections(adaptive)
+                    .setShowDisableOption(type == C.TRACK_TYPE_TEXT)
+                    .build()
+                    .show()
+            }
+            .show()
+    }
+
+    private fun cycleSpeed() {
+        if (isLive) {
+            Toast.makeText(this, "Velocidade indisponível para transmissão ao vivo.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        speedIndex = (speedIndex + 1) % speeds.size
+        val speed = speeds[speedIndex]
+        player?.setPlaybackParameters(PlaybackParameters(speed))
+        speedButton.text = "Velocidade " + speed + "×"
     }
 
     private fun playSource(index: Int) {
