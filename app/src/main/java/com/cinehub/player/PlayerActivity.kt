@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.HorizontalScrollView
 import android.widget.Toast
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -126,10 +127,20 @@ class PlayerActivity : Activity() {
             setOnClickListener { cycleSpeed() }
         }
         controls.addView(speedButton)
-        root.addView(controls, FrameLayout.LayoutParams(
+        // Keep all player actions reachable on narrow TV screens and 720p TV boxes.
+        val controlsScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            isFillViewport = true
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(controls, HorizontalScrollView.LayoutParams(
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        root.addView(controlsScroll, FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            Gravity.BOTTOM
         ))
         setContentView(root)
         TvUi.style(root)
