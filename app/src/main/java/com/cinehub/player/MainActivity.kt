@@ -298,7 +298,8 @@ class MainActivity : Activity() {
                         details.title + " · T$season E$episodeNumber · " + audioLabel(variant.audio),
                         direct,
                         id,
-                        buildEpisodeQueue(details, season, episodeNumber, variant.audio)
+                        buildEpisodeQueue(details, season, episodeNumber, variant.audio),
+                        details.id
                     )
                 }
             }
@@ -313,7 +314,7 @@ class MainActivity : Activity() {
         else -> audio.uppercase()
     }
 
-    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String, episodeQueue: String? = null) {
+    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String, episodeQueue: String? = null, seriesId: String? = null) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
             android.app.AlertDialog.Builder(this)
@@ -328,6 +329,7 @@ class MainActivity : Activity() {
             putExtra("content_id", contentId)
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
+            seriesId?.let { putExtra("series_id", it) }
         })
     }
 
