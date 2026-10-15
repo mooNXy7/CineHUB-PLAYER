@@ -19,13 +19,13 @@
 - [x] Manter os controles do player acessíveis em telas estreitas usando rolagem horizontal e foco compatível com controle remoto.
 - [x] Implementar política para ignorar pausa em LIVE e restauração inicial de posição VOD.
 - [x] Navegar temporadas, episódios e versões de áudio antes de iniciar a reprodução.
-- [ ] Confirmar reprodução de HLS, DASH e MP4 em aparelhos reais (a compilação/empacotamento já passou em CI).
+- [ ] Confirmar reprodução de HLS, DASH e MP4 em aparelhos reais (CI cobre compilação, não reprodução real). Detecção MIME HLS inclui manifests `master.txt` do host `embedplayer2.xyz`.
 - [ ] Validar D-pad, voltar e restauração correta de foco em controle físico.
 
 ## Fase 2 — Resiliência
 - [x] Timeout configurável de início (padrão 15 s; configurável de 10 a 45 s pela tela de teste), troca por erro e watchdog de buffering. Falta validar falhas reais em streams e dispositivos.
 - [x] Buffer por perfil automático/economia/desempenho, com valores reduzidos para aparelhos de pouca memória.
-- [x] Retomada persistente por item/episódio via armazenamento local.
+- [x] Retomada persistente por item/episódio via armazenamento local, com salvamento periódico a cada 15 s, ao pausar e ao sair.
 - [x] Política LIVE separada de VOD; live nunca pausa.
 
 ## Fase 3 — Séries e integrações
@@ -37,13 +37,13 @@
 - [x] Normalizar a fila de episódios: remover IDs/URLs duplicados, filtrar URLs inseguras e limitar filas/fontes para proteger aparelhos com pouca memória.
 - [x] TheIntroDB: consulta assíncrona por TMDB ID e prompt para pular abertura/recap/prévia quando existem marcações válidas; falha da API não interrompe o vídeo.
 - [x] Busca de legendas OpenSubtitles por idioma, com mapeamento TMDB → IMDb por fragmento e fallback para URL manual.
-- [x] Ajuste visual básico de legenda (tamanho/fundo).
+- [x] Ajuste visual de legenda com tamanho pequeno/padrão/grande e fundo configurável separadamente.
 - [ ] Sincronização fina do atraso de legendas (exige camada de temporização para legendas externas; não marcar como concluído só com estilo visual).
 
 ## Fase 4 — Pós-reprodução e catálogo
 - [ ] Cartão visual do próximo episódio e recomendações reais por metadados (o aviso/autoplay de próximo episódio já existe, mas ainda não é o cartão visual).
 - [x] Confirmação “Ainda está assistindo?” após duas horas sem interação em VOD; pausa o vídeo e permite continuar ou manter pausado.
-- [ ] Cliente CineHUB-ACERVO com cache persistente e atualização incremental. Já existem prévias limitadas de VOD, rádios e canais com URLs diretas; o cache ainda é majoritariamente em memória/sem persistência para os catálogos.
+- [ ] Cache persistente em disco e atualização incremental. Já existe cache em memória com TTL de 5 min, limite de 32 entradas e fallback para dados antigos quando a rede falha; prévias de VOD, rádios e canais são limitadas.
 - [ ] Testes em TV Box 1 GB, Google TV e Fire TV (perfil de memória já configurável; falta validar em hardware).
 
 ## Critérios de aceite
@@ -53,3 +53,11 @@
 - Sem carregar catálogo completo na memória.
 - Navegação testada com controle remoto real.
 - Testes de reprodução só com streams de teste autorizados.
+
+## Fase 5 — Pendências de integração e EPG
+- [ ] Implementar sincronização fina de legendas com deslocamento real dos cues.
+- [ ] Completar resolvedores de páginas embed e transporte de cabeçalhos por fonte; há apenas cabeçalhos genéricos e regras iniciais para hosts conhecidos.
+- [ ] Implementar serviço/sessão de mídia para controle de reprodução fora da Activity, se exigido pelo produto final.
+- [ ] Publicar uma API de integração segura entre CineHUB TV e o player; atualmente a Activity de teste não é exportada.
+- [ ] Configurar fontes EPG reais no CineHUB-ACERVO; `catalog/epg/sources.json` está vazio, então não há grade de programação para consumir.
+- [ ] Validar com controle remoto e TVBox de 1 GB, Google TV e Fire TV físicos.
