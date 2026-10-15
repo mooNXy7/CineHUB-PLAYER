@@ -99,7 +99,7 @@ class PlayerActivity : Activity() {
             intent.getStringExtra("content_type").equals("radio", ignoreCase = true)
         isLive = intent.getBooleanExtra("live", false) || isRadio
         startupTimeoutMs = getSharedPreferences("player-settings", MODE_PRIVATE)
-            .getInt("source_timeout_seconds", 15).coerceIn(5, 45) * 1_000L
+            .getInt("source_timeout_seconds", 15).coerceIn(10, 45) * 1_000L
         radioName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { "Rádio CineHUB" }
         radioGenre = intent.getStringExtra("radio_genre")?.trim().orEmpty()
         contentId = intent.getStringExtra("content_id") ?: "unknown"
