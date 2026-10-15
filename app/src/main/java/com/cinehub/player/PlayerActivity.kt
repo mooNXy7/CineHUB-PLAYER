@@ -83,6 +83,8 @@ class PlayerActivity : Activity() {
     private var startupTimeoutMs = 15_000L
     private val handler = android.os.Handler(mainLooper)
     private val posterExecutor = Executors.newSingleThreadExecutor()
+    private val providerResolverExecutor = Executors.newSingleThreadExecutor()
+    private val resolvedProviderUrls = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
     private lateinit var speedButton: Button
@@ -850,7 +852,32 @@ class PlayerActivity : Activity() {
             return
         }
 
-        val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
+        if (url.contains("dadinhodetapioca.fun/play/", ignoreCase = true)) {
+            // Resolve the provider page off the main thread. Keep a timeout active
+            // during resolution so a slow embed cannot block source failover.
+            player?.stop()
+            player?.clearMediaItems()
+            startupCheck?.let(handler::removeCallbacks)
+            startupCheck = Runnable {
+                if (player?.playbackState != Player.STATE_READY &&
+                    player?.playbackState != Player.STATE_ENDED) tryNextSource()
+            }.also { handler.postDelayed(it, startupTimeoutMs) }
+            providerResolverExecutor.execute {
+                val resolved = resolveDadinhoUrl(url)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed || currentIndex != index || url !in attempted) return@runOnUiThread
+                    startSourcePlayback(originalUrl = url, playbackUrl = resolved)
+                }
+            }
+        } else {
+            startSourcePlayback(originalUrl = url, playbackUrl = url)
+        }
+    }
+
+    private fun startSourcePlayback(originalUrl: String, playbackUrl: String) {
+        startupCheck?.let(handler::removeCallbacks)
+        startupCheck = null
+        val host = runCatching { Uri.parse(originalUrl).host.orEmpty().lowercase() }.getOrDefault("")
         val requestHeaders = linkedMapOf("Accept" to "*/*")
         when {
             host == "embedplayer2.xyz" || host.endsWith(".embedplayer2.xyz") -> {
@@ -863,22 +890,58 @@ class PlayerActivity : Activity() {
             }
         }
         httpDataSourceFactory?.setDefaultRequestProperties(requestHeaders)
-
         player?.apply {
             stop()
             clearMediaItems()
-            setMediaItem(buildMediaItem(url))
+            setMediaItem(buildMediaItem(playbackUrl))
             prepare()
             playWhenReady = true
         }
-
-        startupCheck?.let(handler::removeCallbacks)
         startupCheck = Runnable {
             if (player?.playbackState != Player.STATE_READY &&
-                player?.playbackState != Player.STATE_ENDED) {
-                tryNextSource()
-            }
+                player?.playbackState != Player.STATE_ENDED) tryNextSource()
         }.also { handler.postDelayed(it, startupTimeoutMs) }
+    }
+
+    private fun resolveDadinhoUrl(pageUrl: String): String {
+        val now = System.currentTimeMillis()
+        resolvedProviderUrls[pageUrl]?.let { (savedAt, resolved) ->
+            if (now - savedAt < 90 * 60 * 1000L) return resolved
+        }
+        return runCatching {
+            val connection = (URL(pageUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5_000
+                readTimeout = 7_000
+                requestMethod = "GET"
+                setRequestProperty("Referer", "https://rdcanais.org/")
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 11; Android TV) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CineHUB-PLAYER/0.2"
+                )
+            }
+            val html = try {
+                if (connection.responseCode !in 200..299) return@runCatching pageUrl
+                val output = ByteArrayOutputStream()
+                connection.inputStream.use { input ->
+                    val buffer = ByteArray(8 * 1024)
+                    var total = 0
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        if (total > 1_000_000) break
+                        output.write(buffer, 0, count)
+                    }
+                }
+                output.toString("UTF-8")
+            } finally {
+                connection.disconnect()
+            }
+            val resolved = ProviderUrlResolver.extractDadinhoStreamUrl(html) ?: return@runCatching pageUrl
+            resolvedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
+            resolved
+        }.getOrDefault(pageUrl)
     }
 
     private fun buildMediaItem(url: String): MediaItem {
@@ -1223,6 +1286,7 @@ class PlayerActivity : Activity() {
         cancelProgressSave()
         cancelNextEpisodeCountdown()
         posterExecutor.shutdownNow()
+        providerResolverExecutor.shutdownNow()
         subtitleExecutor.shutdownNow()
         internalSubtitleFile?.delete()
         playerView.player = null
