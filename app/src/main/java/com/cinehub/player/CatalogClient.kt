@@ -75,7 +75,8 @@ object CatalogClient {
         val providerRefs: List<ProviderReference> = emptyList(),
         val tmdbId: Int = 0,
         val genres: List<String> = emptyList(),
-        val subtype: String = ""
+        val subtype: String = "",
+        val posterUrl: String = ""
     )
 
     /**
@@ -172,7 +173,8 @@ object CatalogClient {
                     sources = directSources,
                     episodes = episodes,
                     genres = details.genres.ifEmpty { entry.genres },
-                    subtype = details.subtype.ifBlank { entry.subtype }
+                    subtype = details.subtype.ifBlank { entry.subtype },
+                    posterUrl = normalizePosterUrl(details.posterUrl.ifBlank { entry.posterPath })
                 )
             })
         }
@@ -195,6 +197,7 @@ object CatalogClient {
                 var tmdbId = 0
                 var genres = emptyList<String>()
                 var subtype = ""
+                var posterUrl = ""
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -207,13 +210,14 @@ object CatalogClient {
                         "tmdb_id" -> tmdbId = readNullableString(reader).toIntOrNull() ?: 0
                         "genres" -> genres = readStringArray(reader)
                         "subtype" -> subtype = readNullableString(reader)
+                        "poster_url" -> posterUrl = readNullableString(reader)
                         else -> reader.skipValue()
                     }
                 }
                 reader.endObject()
                 if (id == wantedId) {
                     reader.close()
-                    return ContentDetails(id, title, type, sources, episodes, providerRefs, tmdbId, genres, subtype)
+                    return ContentDetails(id, title, type, sources, episodes, providerRefs, tmdbId, genres, subtype, posterUrl)
                 }
             }
             reader.close()
@@ -385,6 +389,14 @@ object CatalogClient {
      * Loads a small, playable-only channel preview. Records with no direct source are
      * deliberately omitted: pending candidates are metadata, not playable streams.
      */
+    fun normalizePosterUrl(rawPath: String): String {
+        val value = rawPath.trim()
+        if (value.isBlank()) return ""
+        if (PlaybackUrlPolicy.isSafeHttpUrl(value)) return value
+        if (!value.startsWith("/") || value.startsWith("//")) return ""
+        return "https://image.tmdb.org/t/p/w342$value"
+    }
+
     /**
      * Returns a small genre-matched recommendation set from catalog index metadata.
      * It deliberately scans only a bounded preview to keep memory/network costs low.
