@@ -23,7 +23,7 @@
 - [ ] Validar D-pad, voltar e restauração correta de foco em controle físico.
 
 ## Fase 2 — Resiliência
-- [x] Timeout configurável de início (padrão 15 s; configurável de 10 a 45 s pela tela de teste), troca por erro e watchdog de buffering. Falta validar falhas reais em streams e dispositivos.
+- [x] Timeout configurável de início (padrão 15 s; configurável de 10 a 45 s pela tela de teste), troca por erro, watchdog de buffering, encerramento inesperado LIVE e fim prematuro VOD quando há fonte alternativa. Falta validar falhas reais em streams e dispositivos.
 - [x] Buffer por perfil automático/economia/desempenho, com valores reduzidos para aparelhos de pouca memória.
 - [x] Retomada persistente por item/episódio via armazenamento local, com salvamento periódico a cada 15 s, ao pausar e ao sair.
 - [x] Política LIVE separada de VOD; live nunca pausa.
