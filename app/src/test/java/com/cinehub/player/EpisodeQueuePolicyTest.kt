@@ -6,6 +6,26 @@ import org.junit.Test
 
 class EpisodeQueuePolicyTest {
     @Test
+    fun queueWindowContainsCurrentEpisodeAndStaysWithinLimit() {
+        val start = EpisodeQueuePolicy.windowStart(
+            totalEpisodes = 250,
+            currentIndex = 220
+        )
+
+        assertEquals(150, start)
+        assertTrue(220 >= start!!)
+        assertTrue(220 < start + EpisodeQueuePolicy.MAX_EPISODES)
+    }
+
+    @Test
+    fun queueWindowStartsAtBeginningForEarlyEpisodeAndRejectsInvalidIndexes() {
+        assertEquals(0, EpisodeQueuePolicy.windowStart(totalEpisodes = 250, currentIndex = 4))
+        assertEquals(0, EpisodeQueuePolicy.windowStart(totalEpisodes = 12, currentIndex = 11))
+        assertEquals(null, EpisodeQueuePolicy.windowStart(totalEpisodes = 12, currentIndex = 12))
+        assertEquals(null, EpisodeQueuePolicy.windowStart(totalEpisodes = 0, currentIndex = 0))
+    }
+
+    @Test
     fun removesDuplicateIdsAndDuplicateSources() {
         val queue = EpisodeQueuePolicy.normalize(
             listOf(
