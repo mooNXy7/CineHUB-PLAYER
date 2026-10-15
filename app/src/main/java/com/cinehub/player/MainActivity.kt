@@ -9,6 +9,8 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.HorizontalScrollView
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
@@ -22,19 +24,27 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
-        val root = LinearLayout(this).apply {
+        val root = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.rgb(15, 15, 15))
+            overScrollMode = ScrollView.OVER_SCROLL_NEVER
+        }
+        val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(48, 32, 48, 32)
-            setBackgroundColor(Color.rgb(15, 15, 15))
             isFocusableInTouchMode = true
         }
-        root.addView(TextView(this).apply {
+        root.addView(content, ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ))
+        content.addView(TextView(this).apply {
             text = "CineHUB PLAYER"
             textSize = 30f
             setTextColor(Color.WHITE)
         })
-        root.addView(TextView(this).apply {
+        content.addView(TextView(this).apply {
             text = "Player nativo de teste · Android TV / Google TV / TV Box"
             textSize = 16f
             setTextColor(Color.LTGRAY)
@@ -46,7 +56,7 @@ class MainActivity : Activity() {
             setTextColor(Color.LTGRAY)
             setPadding(0, 8, 0, 20)
         }
-        root.addView(status)
+        content.addView(status)
         val categories = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -62,8 +72,16 @@ class MainActivity : Activity() {
                 setOnClickListener { showCategoryPreview(key, label) }
             })
         }
-        root.addView(categories)
-        root.addView(Button(this).apply {
+        val categoriesScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            addView(categories, HorizontalScrollView.LayoutParams(
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
+                HorizontalScrollView.LayoutParams.WRAP_CONTENT
+            ))
+        }
+        content.addView(categoriesScroll)
+        content.addView(Button(this).apply {
             text = "CARREGAR RÁDIOS DO CINEHUB-ACERVO"
             setOnClickListener { showRadioPicker() }
         })
@@ -80,7 +98,7 @@ class MainActivity : Activity() {
                 updateMemoryProfileLabel()
             }
         }
-        root.addView(memoryProfileButton)
+        content.addView(memoryProfileButton)
         updateMemoryProfileLabel()
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
@@ -90,16 +108,16 @@ class MainActivity : Activity() {
             textSize = 16f
             contentDescription = "URL do stream para teste"
         }
-        root.addView(streamInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        root.addView(Button(this).apply {
+        content.addView(streamInput, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        content.addView(Button(this).apply {
             text = "REPRODUZIR VÍDEO"
             setOnClickListener { launchPlayer(live = false) }
         })
-        root.addView(Button(this).apply {
+        content.addView(Button(this).apply {
             text = "TESTAR TRANSMISSÃO AO VIVO"
             setOnClickListener { launchPlayer(live = true) }
         })
-        root.addView(Button(this).apply {
+        content.addView(Button(this).apply {
             text = "ATUALIZAR STATUS DO CATÁLOGO"
             setOnClickListener { loadCatalogStatus() }
         })
