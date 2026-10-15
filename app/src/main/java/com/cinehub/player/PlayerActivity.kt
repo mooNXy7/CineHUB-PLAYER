@@ -2,6 +2,7 @@ package com.cinehub.player
 
 import android.app.Activity
 import android.app.ActivityManager
+import android.content.Intent
 import android.net.Uri
 import android.graphics.Color
 import android.text.InputType
