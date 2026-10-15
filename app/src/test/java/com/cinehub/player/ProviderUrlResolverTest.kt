@@ -27,4 +27,24 @@ class ProviderUrlResolverTest {
         assertNull(ProviderUrlResolver.resolve("http://disabled.invalid/", "12345"))
         assertNull(ProviderUrlResolver.resolve("javascript:alert(1)", "12345"))
     }
+
+    @Test
+    fun extractsAndUnescapesDadinhoHlsUrl() {
+        val html = """<script>const STREAM_URLS = ["https:\/\/cdn.example/live/master.m3u8"];</script>"""
+        assertEquals(
+            "https://cdn.example/live/master.m3u8",
+            ProviderUrlResolver.extractDadinhoStreamUrl(html)
+        )
+    }
+
+    @Test
+    fun rejectsNonHttpDadinhoCandidates() {
+        assertNull(ProviderUrlResolver.extractDadinhoStreamUrl("""STREAM_URLS = ["file:///tmp/stream"]"""))
+    }
+
+    @Test
+    fun returnsNullWhenProviderMarkupChanges() {
+        assertNull(ProviderUrlResolver.extractDadinhoStreamUrl("<html>no playlist here</html>"))
+    }
+
 }
