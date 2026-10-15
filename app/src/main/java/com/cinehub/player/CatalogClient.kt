@@ -65,8 +65,8 @@ object CatalogClient {
     /** Reject catalog entries that are HTML embed pages mislabeled as direct streams. */
     fun isDirectPlaybackSource(source: PlaybackSource): Boolean {
         if (source.sourceType.equals("embed", ignoreCase = true)) return false
+        if (!PlaybackUrlPolicy.isSafeHttpUrl(source.url)) return false
         val uri = runCatching { URL(source.url) }.getOrNull() ?: return false
-        if (uri.protocol !in setOf("http", "https")) return false
         val host = uri.host.lowercase()
         val path = uri.path.lowercase()
         if (host == "mgeb.top" || host.endsWith(".mgeb.top") || host == "nhdapi.com" || host.endsWith(".nhdapi.com")) return false
@@ -178,7 +178,7 @@ object CatalogClient {
                 val index = split[0].toIntOrNull() ?: return@mapNotNull null
                 val base = split[1].trim()
                 val uri = runCatching { URL(base) }.getOrNull() ?: return@mapNotNull null
-                if (uri.protocol !in setOf("http", "https") ||
+                if (!PlaybackUrlPolicy.isSafeHttpUrl(base) ||
                     uri.host.endsWith(".invalid", ignoreCase = true)) return@mapNotNull null
                 index to if (base.endsWith("/")) base else "$base/"
             }.toMap()
@@ -230,7 +230,7 @@ object CatalogClient {
                 }
             }
             reader.endObject()
-            if (url.startsWith("https://") || url.startsWith("http://")) {
+            if (PlaybackUrlPolicy.isSafeHttpUrl(url)) {
                 result.add(PlaybackSource(url, audio, priority, sourceId, sourceType))
             }
         }
@@ -352,7 +352,7 @@ object CatalogClient {
                                         }
                                     }
                                     reader.endObject()
-                                    if (name.isNotBlank() && (stream.startsWith("https://") || stream.startsWith("http://"))) {
+                                    if (name.isNotBlank() && PlaybackUrlPolicy.isSafeHttpUrl(stream)) {
                                         entries.add(RadioEntry(id, name, stream, genre))
                                     }
                                 }
