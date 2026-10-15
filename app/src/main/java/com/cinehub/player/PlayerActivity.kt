@@ -741,7 +741,7 @@ class PlayerActivity : Activity() {
                 }
             }.getOrNull()
             if (bitmap != null) runOnUiThread {
-                if (!isFinishing && !isDestroyed && target.isAttachedToWindow) target.setImageBitmap(bitmap)
+                if (!isFinishing && !isDestroyed) target.setImageBitmap(bitmap)
             }
         }
     }
