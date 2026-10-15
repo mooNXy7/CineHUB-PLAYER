@@ -222,7 +222,8 @@ class PlayerActivity : Activity() {
                     player?.let { exo ->
                         if (exo.isPlaying) exo.pause() else exo.play()
                     }
-                }
+                },
+                onChangeStation = { showRadioStationPicker() }
             )
             radioExperience = radioScreen
             root.addView(radioScreen, FrameLayout.LayoutParams(
@@ -587,6 +588,47 @@ class PlayerActivity : Activity() {
             }
             .setNegativeButton("Voltar", if (season == null) null else { _, _ -> showSeasonQueuePicker() })
             .show()
+    }
+
+    private fun showRadioStationPicker() {
+        CatalogClient.loadRadioPreview(80) { result ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                result.fold(
+                    onSuccess = { stations ->
+                        if (stations.isEmpty()) {
+                            Toast.makeText(this, "O acervo não retornou rádios com URL direta.", Toast.LENGTH_LONG).show()
+                            return@fold
+                        }
+                        val labels = stations.map { station ->
+                            station.name + station.genre.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
+                        }.toTypedArray()
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Trocar estação · CineHUB")
+                            .setItems(labels) { _, index ->
+                                val station = stations.getOrNull(index) ?: return@setItems
+                                sourceUrls = listOf(station.streamUrl)
+                                attempted.clear()
+                                currentIndex = 0
+                                contentId = station.id
+                                radioName = station.name
+                                radioGenre = station.genre
+                                radioExperience?.setStation(station.name, station.genre)
+                                playSource(0)
+                            }
+                            .setNegativeButton("Cancelar", null)
+                            .show()
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(
+                            this,
+                            "Não foi possível carregar as rádios: " + (error.message ?: "erro desconhecido"),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+        }
     }
 
     private fun showMoreLikeThis() {
