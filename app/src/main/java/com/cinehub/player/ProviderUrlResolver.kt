@@ -124,7 +124,7 @@ internal object ProviderUrlResolver {
         return endpoints.toList()
     }
 
-    fun extractNhdPlayUrl(jsonText: String): String? {
+    fun extractNhdPlayUrl(jsonText: String, baseUrl: String? = null): String? {
         val payload = runCatching { JSONObject(jsonText) }.getOrNull() ?: return null
         if (!payload.optBoolean("success", false)) return null
         val candidates = mutableListOf<String>()
@@ -136,7 +136,9 @@ internal object ProviderUrlResolver {
             candidates += track.optString("playUrl")
             candidates += track.optString("file")
         }
-        return candidates.firstNotNullOfOrNull { raw -> raw.takeIf(PlaybackUrlPolicy::isSafeHttpUrl) }
+        return candidates.firstNotNullOfOrNull { raw ->
+            if (baseUrl != null) normalizeUrl(raw, baseUrl) else raw.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
+        }
     }
 
     private fun decodedVariants(raw: String): List<String> {
