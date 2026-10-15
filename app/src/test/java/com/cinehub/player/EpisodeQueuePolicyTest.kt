@@ -52,6 +52,26 @@ class EpisodeQueuePolicyTest {
     }
 
     @Test
+    fun preservesTmdbAndEpisodeCoordinatesForIntegrations() {
+        val queue = EpisodeQueuePolicy.normalize(
+            listOf(
+                QueuedEpisode(
+                    "T2 E4",
+                    "series-episode-2-4",
+                    listOf("https://media.example/e4.m3u8"),
+                    tmdbId = 124791,
+                    season = 2,
+                    episode = 4
+                )
+            )
+        )
+
+        assertEquals(124791, queue.single().tmdbId)
+        assertEquals(2, queue.single().season)
+        assertEquals(4, queue.single().episode)
+    }
+
+    @Test
     fun fillsBlankTitleAndTrimsValues() {
         val queue = EpisodeQueuePolicy.normalize(
             listOf(QueuedEpisode(" ", " episode-1 ", listOf(" https://media.example/e1.m3u8 ")))
