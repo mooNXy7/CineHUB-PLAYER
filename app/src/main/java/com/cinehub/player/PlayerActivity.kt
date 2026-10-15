@@ -3,11 +3,13 @@ package com.cinehub.player
 import android.app.Activity
 import android.net.Uri
 import android.graphics.Color
+import android.text.InputType
 import android.view.Gravity
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.widget.Button
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -79,6 +81,11 @@ class PlayerActivity : Activity() {
             text = "Áudio / Legendas"
             contentDescription = "Selecionar faixas de áudio e legendas"
             setOnClickListener { showTrackMenu() }
+        })
+        controls.addView(Button(this).apply {
+            text = "Legenda externa"
+            contentDescription = "Adicionar legenda por URL"
+            setOnClickListener { promptExternalSubtitle() }
         })
         speedButton = Button(this).apply {
             text = "Velocidade 1.0×"
@@ -186,28 +193,10 @@ class PlayerActivity : Activity() {
             return
         }
 
-        val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
-        subtitleUrl?.let { subtitle ->
-            itemBuilder.setSubtitleConfigurations(
-                listOf(
-                    MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle))
-                        .setMimeType(
-                            when {
-                                subtitle.endsWith(".vtt", true) -> "text/vtt"
-                                subtitle.endsWith(".srt", true) -> "application/x-subrip"
-                                else -> "text/vtt"
-                            }
-                        )
-                        .setLanguage("pt")
-                        .setSelectionFlags(0)
-                        .build()
-                )
-            )
-        }
         player?.apply {
             stop()
             clearMediaItems()
-            setMediaItem(itemBuilder.build())
+            setMediaItem(buildMediaItem(url))
             prepare()
             playWhenReady = true
         }
@@ -219,6 +208,56 @@ class PlayerActivity : Activity() {
                 tryNextSource()
             }
         }.also { handler.postDelayed(it, 15_000L) }
+    }
+
+    private fun buildMediaItem(url: String): MediaItem {
+        val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
+        subtitleUrl?.let { subtitle ->
+            val lower = subtitle.substringBefore('?').lowercase()
+            val mime = when {
+                lower.endsWith(".srt") -> "application/x-subrip"
+                lower.endsWith(".vtt") -> "text/vtt"
+                lower.endsWith(".ssa") || lower.endsWith(".ass") -> "text/x-ssa"
+                else -> "text/vtt"
+            }
+            itemBuilder.setSubtitleConfigurations(
+                listOf(
+                    MediaItem.SubtitleConfiguration.Builder(Uri.parse(subtitle))
+                        .setMimeType(mime)
+                        .setLanguage("pt")
+                        .setSelectionFlags(0)
+                        .build()
+                )
+            )
+        }
+        return itemBuilder.build()
+    }
+
+    private fun promptExternalSubtitle() {
+        val input = EditText(this).apply {
+            hint = "https://.../legenda.vtt ou .srt"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_URI
+            setSingleLine(true)
+            setText(subtitleUrl.orEmpty())
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Adicionar legenda externa")
+            .setView(input)
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Aplicar") { _, _ ->
+                val candidate = input.text?.toString()?.trim().orEmpty()
+                if (!candidate.startsWith("https://") && !candidate.startsWith("http://")) {
+                    Toast.makeText(this, "Informe uma URL HTTP(S) válida.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                subtitleUrl = candidate
+                val position = player?.currentPosition ?: 0L
+                val url = sourceUrls.getOrNull(currentIndex) ?: return@setPositiveButton
+                player?.setMediaItem(buildMediaItem(url), position)
+                player?.prepare()
+                player?.playWhenReady = true
+            }
+            .show()
     }
 
     private fun tryNextSource() {
