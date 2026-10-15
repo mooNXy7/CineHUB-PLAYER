@@ -267,6 +267,8 @@ private class RadioSoundArt(context: Context) : View(context) {
             paint.color = if (i % 4 == 0) 0xFFFF5A62.toInt() else 0xFFE50914.toInt()
             canvas.drawRoundRect(x, baseY - barHeight, x + barWidth, baseY, barWidth / 2, barWidth / 2, paint)
         }
-        if (isShown) postInvalidateDelayed(50L)
+        // Keep the decorative equalizer at 20 FPS only while audio is active.
+        // A paused station must not burn CPU on low-memory TV boxes.
+        if (isShown && active) postInvalidateDelayed(50L)
     }
 }
