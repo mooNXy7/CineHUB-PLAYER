@@ -151,6 +151,23 @@ class MainActivity : Activity() {
         setContentView(root)
         TvUi.style(root)
         loadCatalogStatus()
+        intent.getStringExtra("open_detail_json")?.let { raw ->
+            runCatching {
+                val json = JSONObject(raw)
+                val genreArray = json.optJSONArray("genres") ?: JSONArray()
+                val genres = (0 until genreArray.length()).mapNotNull { genreArray.optString(it).takeIf(String::isNotBlank) }
+                CatalogClient.CatalogEntry(
+                    id = json.optString("id"),
+                    title = json.optString("title"),
+                    type = json.optString("type"),
+                    detailPath = json.optString("detail_path"),
+                    posterPath = json.optString("poster_url"),
+                    year = json.optString("year"),
+                    genres = genres,
+                    subtype = json.optString("subtype")
+                )
+            }.getOrNull()?.let(::showContentDetails)
+        }
     }
 
     private fun updateSourceTimeoutLabel() {
@@ -307,7 +324,9 @@ class MainActivity : Activity() {
                                 details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
                                     .sortedBy { it.priority }.map { it.url },
                                 details.id,
-                                tmdbId = details.tmdbId
+                                tmdbId = details.tmdbId,
+                                catalogCategory = categoryFor(entry.type, entry.subtype),
+                                catalogGenres = entry.genres.ifEmpty { details.genres }
                             )
                         }
                     },
@@ -403,12 +422,21 @@ class MainActivity : Activity() {
                         details.tmdbId,
                         season,
                         episodeNumber,
-                        queue.currentIndex
+                        queue.currentIndex,
+                        catalogCategory = categoryFor(details.type, details.subtype),
+                        catalogGenres = details.genres
                     )
                 }
             }
             .setNegativeButton("Voltar", null)
             .show()
+    }
+
+    private fun categoryFor(type: String, subtype: String = ""): String = when {
+        subtype.equals("anime", ignoreCase = true) || type.equals("anime", ignoreCase = true) -> "anime"
+        subtype.equals("dorama", ignoreCase = true) || type.equals("dorama", ignoreCase = true) -> "doramas"
+        type.equals("movie", ignoreCase = true) -> "movies"
+        else -> "series"
     }
 
     private fun audioLabel(audio: String): String = when (audio.lowercase()) {
@@ -427,7 +455,9 @@ class MainActivity : Activity() {
         tmdbId: Int = 0,
         season: Int = 0,
         episode: Int = 0,
-        queueCurrentIndex: Int = -1
+        queueCurrentIndex: Int = -1,
+        catalogCategory: String? = null,
+        catalogGenres: List<String> = emptyList()
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -448,6 +478,8 @@ class MainActivity : Activity() {
             if (tmdbId > 0) putExtra("tmdb_id", tmdbId)
             if (season > 0) putExtra("season_number", season)
             if (episode > 0) putExtra("episode_number", episode)
+            catalogCategory?.let { putExtra("catalog_category", it) }
+            if (catalogGenres.isNotEmpty()) putStringArrayListExtra("catalog_genres", ArrayList(catalogGenres))
         })
     }
 
