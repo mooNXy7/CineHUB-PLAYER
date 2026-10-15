@@ -311,6 +311,13 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            CatalogClient.clearMemoryCache()
+        }
+    }
+
     private fun showContentDetails(entry: CatalogClient.CatalogEntry) {
         status.text = "Consultando fontes e episódios de ${entry.title}…"
         CatalogClient.loadContentDetails(entry) { result ->
