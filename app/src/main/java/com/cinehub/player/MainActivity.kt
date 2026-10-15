@@ -229,7 +229,8 @@ class MainActivity : Activity() {
                                 details.title,
                                 details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
                                     .sortedBy { it.priority }.map { it.url },
-                                details.id
+                                details.id,
+                                tmdbId = details.tmdbId
                             )
                         }
                     },
@@ -320,7 +321,10 @@ class MainActivity : Activity() {
                         direct,
                         id,
                         buildEpisodeQueue(details, season, episodeNumber, variant.audio),
-                        details.id
+                        details.id,
+                        details.tmdbId,
+                        season,
+                        episodeNumber
                     )
                 }
             }
@@ -335,7 +339,16 @@ class MainActivity : Activity() {
         else -> audio.uppercase()
     }
 
-    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String, episodeQueue: String? = null, seriesId: String? = null) {
+    private fun choosePlaybackSources(
+        title: String,
+        urls: List<String>,
+        contentId: String,
+        episodeQueue: String? = null,
+        seriesId: String? = null,
+        tmdbId: Int = 0,
+        season: Int = 0,
+        episode: Int = 0
+    ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
             android.app.AlertDialog.Builder(this)
@@ -351,6 +364,9 @@ class MainActivity : Activity() {
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
             seriesId?.let { putExtra("series_id", it) }
+            if (tmdbId > 0) putExtra("tmdb_id", tmdbId)
+            if (season > 0) putExtra("season_number", season)
+            if (episode > 0) putExtra("episode_number", episode)
         })
     }
 
@@ -382,6 +398,9 @@ class MainActivity : Activity() {
                     put("title", details.title + " · T" + episodeKey.season + " E" + episodeKey.episode)
                     put("content_id", details.id + "-" + episodeKey.season + "-" + episodeKey.episode + "-" + (selected?.audio ?: ""))
                     put("sources", JSONArray(urls))
+                    put("tmdb_id", details.tmdbId)
+                    put("season", episodeKey.season)
+                    put("episode", episodeKey.episode)
                 })
             }
         }
