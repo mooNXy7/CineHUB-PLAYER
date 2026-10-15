@@ -416,17 +416,7 @@ object CatalogClient {
         }
         loadCategoryPreview(category, 100) { result ->
             onResult(result.map { entries ->
-                entries.asSequence()
-                    .filter { it.id != currentId }
-                    .map { entry ->
-                        entry to entry.genres.count { it.trim().lowercase() in normalizedGenres }
-                    }
-                    .filter { it.second > 0 }
-                    .sortedWith(compareByDescending<Pair<CatalogEntry, Int>> { it.second }
-                        .thenBy { it.first.title.lowercase() })
-                    .take(limit)
-                    .map { it.first }
-                    .toList()
+                CatalogRecommendationPolicy.select(entries, currentId, normalizedGenres.toList(), limit)
             })
         }
     }
