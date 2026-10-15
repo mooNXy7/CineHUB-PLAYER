@@ -58,6 +58,8 @@ class PlayerActivity : Activity() {
     private var attempted = mutableSetOf<String>()
     private var currentIndex = 0
     private var sourceRequestToken = 0
+    private var backgrounding = false
+    private var resumeAfterStop = false
     private var isLive = false
     private var isRadio = false
     private var radioName = "Rádio CineHUB"
@@ -350,7 +352,7 @@ class PlayerActivity : Activity() {
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                         // TV channels stay continuous; radio deliberately supports pause/resume.
-                        if (isLive && !isRadio && !playWhenReady) {
+                        if (isLive && !isRadio && !playWhenReady && !backgrounding) {
                             this@PlayerActivity.player?.play()
                         } else if (!isLive && !isRadio) {
                             if (playWhenReady) {
@@ -1500,9 +1502,29 @@ class PlayerActivity : Activity() {
         cancelStillWatchingPrompt()
         stillWatchingDialog?.dismiss()
         stillWatchingDialog = null
+        backgrounding = true
+        resumeAfterStop = !isFinishing && player?.isPlaying == true
         super.onStop()
         cancelProgressSave()
         persistPlaybackProgress()
+        if (resumeAfterStop) player?.pause()
+        playerView.player = null
+        radioExperience?.setPlaybackState(false)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        playerView.player = if (isRadio) null else player
+        backgrounding = false
+        if (resumeAfterStop && !isFinishing) player?.play()
+        resumeAfterStop = false
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            CatalogClient.clearMemoryCache()
+        }
     }
 
     override fun onDestroy() {
