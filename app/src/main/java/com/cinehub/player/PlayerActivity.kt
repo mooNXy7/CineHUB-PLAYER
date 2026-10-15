@@ -52,7 +52,6 @@ class PlayerActivity : Activity() {
     private lateinit var speedButton: Button
     private var subtitleLarge = false
     private var subtitleBackground = true
-    private data class QueuedEpisode(val title: String, val contentId: String, val sources: List<String>)
     private var episodeQueue: List<QueuedEpisode> = emptyList()
     private var queueIndex = 0
     private var nextEpisodeDialog: android.app.AlertDialog? = null
@@ -209,25 +208,24 @@ class PlayerActivity : Activity() {
         if (raw.isBlank()) return emptyList()
         return runCatching {
             val array = JSONArray(raw)
-            buildList {
-                for (index in 0 until array.length()) {
+            val parsed = buildList {
+                // A hard input bound avoids iterating a malformed or unexpectedly huge Intent payload.
+                for (index in 0 until minOf(array.length(), EpisodeQueuePolicy.MAX_EPISODES * 4)) {
                     val item = array.optJSONObject(index) ?: continue
                     val urls = item.optJSONArray("sources") ?: continue
                     val sources = buildList {
-                        for (i in 0 until urls.length()) {
-                            val url = urls.optString(i).trim()
-                            if (PlaybackUrlPolicy.isSafeHttpUrl(url)) add(url)
+                        for (i in 0 until minOf(urls.length(), EpisodeQueuePolicy.MAX_SOURCES_PER_EPISODE * 4)) {
+                            add(urls.optString(i))
                         }
-                    }.distinct()
-                    if (sources.isNotEmpty()) {
-                        add(QueuedEpisode(
-                            item.optString("title", "Próximo episódio"),
-                            item.optString("content_id", "episode-$index"),
-                            sources
-                        ))
                     }
+                    add(QueuedEpisode(
+                        item.optString("title", "Próximo episódio"),
+                        item.optString("content_id", "episode-$index"),
+                        sources
+                    ))
                 }
             }
+            EpisodeQueuePolicy.normalize(parsed)
         }.getOrDefault(emptyList())
     }
 
