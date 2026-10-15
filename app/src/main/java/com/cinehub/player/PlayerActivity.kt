@@ -834,7 +834,7 @@ class PlayerActivity : Activity() {
         val next = episodeQueue[queueIndex++]
         contentId = next.contentId
         // Subtitle URLs from a previous episode can point to a different timeline.
-        internalSubtitleFile?.delete()
+        val previousSubtitleFile = internalSubtitleFile
         internalSubtitleFile = null
         originalSubtitleUrl = null
         subtitleUrl = null
@@ -858,6 +858,7 @@ class PlayerActivity : Activity() {
         nextPromptShown = false
         failureDialogShown = false
         playSource(0)
+        previousSubtitleFile?.delete()
     }
 
     private fun showTrackMenu() {
@@ -1117,10 +1118,11 @@ class PlayerActivity : Activity() {
                 val offset = offsets.getOrElse(index) { 0L }
                 if (offset == 0L) {
                     subtitleDelayMs = 0L
-                    internalSubtitleFile?.delete()
+                    val previousFile = internalSubtitleFile
                     internalSubtitleFile = null
                     subtitleUrl = source
                     reloadCurrentMediaItemWithSubtitle()
+                    previousFile?.delete()
                 } else {
                     applySubtitleDelay(source, offset)
                 }
@@ -1178,11 +1180,12 @@ class PlayerActivity : Activity() {
                 }
                 result.fold(
                     onSuccess = { file ->
-                        internalSubtitleFile?.delete()
+                        val previousFile = internalSubtitleFile
                         internalSubtitleFile = file
                         subtitleUrl = Uri.fromFile(file).toString()
                         subtitleDelayMs = offsetMs
                         reloadCurrentMediaItemWithSubtitle()
+                        if (previousFile != file) previousFile?.delete()
                         Toast.makeText(
                             this,
                             "Sincronização aplicada: ${if (offsetMs > 0) "+" else ""}${offsetMs / 1_000}s",
@@ -1265,12 +1268,13 @@ class PlayerActivity : Activity() {
         }
         if (sourceUrls.getOrNull(currentIndex) == null) return
         originalSubtitleUrl = candidate
-        internalSubtitleFile?.delete()
+        val previousFile = internalSubtitleFile
         internalSubtitleFile = null
         subtitleUrl = candidate
         subtitleDelayMs = 0L
         subtitleMimeTypeOverride = mimeTypeOverride
         reloadCurrentMediaItemWithSubtitle()
+        previousFile?.delete()
     }
 
     private fun tryNextSource() {
