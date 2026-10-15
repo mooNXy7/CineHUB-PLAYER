@@ -57,7 +57,7 @@
 
 ## Fase 5 — Pendências de integração e EPG
 - [x] Implementar sincronização de timestamps em legendas externas SRT/VTT; falta suportar deslocamento de faixas embutidas e outros formatos.
-- [ ] Completar resolvedores de páginas embed e transporte de cabeçalhos por fonte; há apenas cabeçalhos genéricos e regras iniciais para hosts conhecidos.
+- [ ] Completar resolvedores de páginas embed restantes e transporte de cabeçalhos por fonte; o resolver Dadinho e regras iniciais para hosts conhecidos já estão implementados.
 - [ ] Implementar serviço/sessão de mídia para controle de reprodução fora da Activity, se exigido pelo produto final.
 - [ ] Publicar uma API de integração segura entre CineHUB TV e o player; atualmente a Activity de teste não é exportada.
 - [ ] Configurar fontes EPG reais no CineHUB-ACERVO; `catalog/epg/sources.json` está vazio, então não há grade de programação para consumir.
