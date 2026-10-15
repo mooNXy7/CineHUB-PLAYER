@@ -83,7 +83,19 @@ class PlayerActivity : Activity() {
                         if (playbackState == Player.STATE_READY) {
                             startupCheck?.let(handler::removeCallbacks)
                             startupCheck = null
+                            if (!isLive) {
+                                val savedPosition = getSharedPreferences("playback-progress", MODE_PRIVATE)
+                                    .getLong(contentId, 0L)
+                                if (savedPosition > 0L && currentPosition < 5_000L) {
+                                    seekTo(savedPosition)
+                                }
+                            }
                         }
+                    }
+
+                    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                        // LIVE must remain playing even if the controller or remote sends pause.
+                        if (isLive && !playWhenReady) this@PlayerActivity.player?.play()
                     }
                 })
             }
