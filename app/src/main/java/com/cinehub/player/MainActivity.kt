@@ -14,6 +14,7 @@ import android.widget.TextView
 class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var streamInput: EditText
+    private lateinit var memoryProfileButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -64,6 +65,21 @@ class MainActivity : Activity() {
             text = "CARREGAR RÁDIOS DO CINEHUB-ACERVO"
             setOnClickListener { showRadioPicker() }
         })
+        memoryProfileButton = Button(this).apply {
+            setOnClickListener {
+                val prefs = getSharedPreferences("player-settings", MODE_PRIVATE)
+                val current = prefs.getString("memory_profile", "auto") ?: "auto"
+                val next = when (current) {
+                    "auto" -> "low"
+                    "low" -> "normal"
+                    else -> "auto"
+                }
+                prefs.edit().putString("memory_profile", next).apply()
+                updateMemoryProfileLabel()
+            }
+        }
+        root.addView(memoryProfileButton)
+        updateMemoryProfileLabel()
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
             setSingleLine(true)
@@ -87,6 +103,17 @@ class MainActivity : Activity() {
         })
         setContentView(root)
         loadCatalogStatus()
+    }
+
+    private fun updateMemoryProfileLabel() {
+        val profile = getSharedPreferences("player-settings", MODE_PRIVATE)
+            .getString("memory_profile", "auto") ?: "auto"
+        memoryProfileButton.text = when (profile) {
+            "low" -> "Buffer: ECONOMIA DE MEMÓRIA (toque para alterar)"
+            "normal" -> "Buffer: DESEMPENHO (toque para alterar)"
+            else -> "Buffer: AUTOMÁTICO (toque para alterar)"
+        }
+        memoryProfileButton.contentDescription = "Perfil de buffer: $profile"
     }
 
     private fun launchPlayer(live: Boolean) {
