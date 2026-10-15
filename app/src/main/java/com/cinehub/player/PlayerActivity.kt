@@ -56,6 +56,7 @@ class PlayerActivity : Activity() {
     private var sourceUrls: List<String> = emptyList()
     private var attempted = mutableSetOf<String>()
     private var currentIndex = 0
+    private var sourceRequestToken = 0
     private var isLive = false
     private var isRadio = false
     private var radioName = "Rádio CineHUB"
@@ -912,6 +913,7 @@ class PlayerActivity : Activity() {
             tryNextSource()
             return
         }
+        val requestToken = ++sourceRequestToken
 
         if (url.contains("dadinhodetapioca.fun/play/", ignoreCase = true)) {
             // Resolve the provider page off the main thread. Keep a timeout active
@@ -926,7 +928,9 @@ class PlayerActivity : Activity() {
             providerResolverExecutor.execute {
                 val resolved = resolveDadinhoUrl(url)
                 runOnUiThread {
-                    if (isFinishing || isDestroyed || currentIndex != index || url !in attempted) return@runOnUiThread
+                    if (isFinishing || isDestroyed || currentIndex != index ||
+                        sourceRequestToken != requestToken || url !in attempted
+                    ) return@runOnUiThread
                     startSourcePlayback(originalUrl = url, playbackUrl = resolved)
                 }
             }
