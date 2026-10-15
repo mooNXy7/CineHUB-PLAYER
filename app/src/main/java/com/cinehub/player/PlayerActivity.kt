@@ -113,7 +113,7 @@ class PlayerActivity : Activity() {
 
         isRadio = intent.getBooleanExtra("radio", false) ||
             intent.getStringExtra("content_type").equals("radio", ignoreCase = true)
-        isLive = intent.getBooleanExtra("live", false) || isRadio
+        isLive = intent.getBooleanExtra("live", false) && !isRadio
         startupTimeoutMs = getSharedPreferences("player-settings", MODE_PRIVATE)
             .getInt("source_timeout_seconds", 15).coerceIn(10, 45) * 1_000L
         radioName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { "Rádio CineHUB" }
@@ -324,6 +324,8 @@ class PlayerActivity : Activity() {
                                     scheduleProgressSave()
                                 }
                             }
+                        } else if (playbackState == Player.STATE_ENDED && isRadio) {
+                            handler.post { if (!isFinishing && isRadio) tryNextSource() }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
                             if (queueIndex < episodeQueue.size) showNextEpisodePrompt() else showMoreLikeThis()
                         } else if (playbackState == Player.STATE_ENDED && isLive) {
@@ -339,7 +341,7 @@ class PlayerActivity : Activity() {
                         // TV channels stay continuous; radio deliberately supports pause/resume.
                         if (isLive && !isRadio && !playWhenReady) {
                             this@PlayerActivity.player?.play()
-                        } else if (!isLive) {
+                        } else if (!isLive && !isRadio) {
                             if (playWhenReady) {
                                 scheduleStillWatchingPrompt()
                                 scheduleProgressSave()
@@ -364,7 +366,7 @@ class PlayerActivity : Activity() {
                                 isBuffering = this@PlayerActivity.player?.playbackState == Player.STATE_BUFFERING
                             )
                         }
-                        if (!isLive) {
+                        if (!isLive && !isRadio) {
                             if (isPlaying) scheduleProgressSave()
                             else {
                                 cancelProgressSave()
@@ -391,7 +393,7 @@ class PlayerActivity : Activity() {
 
     private fun scheduleProgressSave() {
         cancelProgressSave()
-        if (isLive || isFinishing || player?.isPlaying != true) return
+        if (isLive || isRadio || isFinishing || player?.isPlaying != true) return
         progressSaveRunnable = object : Runnable {
             override fun run() {
                 progressSaveRunnable = null
@@ -411,7 +413,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun persistPlaybackProgress() {
-        if (isLive) return
+        if (isLive || isRadio) return
         val exo = player
         val savedPosition = PlaybackProgressPolicy.positionToPersist(
             positionMs = exo?.currentPosition ?: -1L,
@@ -428,7 +430,7 @@ class PlayerActivity : Activity() {
 
     private fun scheduleStillWatchingPrompt() {
         cancelStillWatchingPrompt()
-        if (isLive || isFinishing || player?.isPlaying != true) return
+        if (isLive || isRadio || isFinishing || player?.isPlaying != true) return
         stillWatchingRunnable = Runnable {
             stillWatchingRunnable = null
             if (isFinishing || isLive || player?.isPlaying != true) return@Runnable
