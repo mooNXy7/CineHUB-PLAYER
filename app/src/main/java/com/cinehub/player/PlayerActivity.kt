@@ -950,7 +950,8 @@ class PlayerActivity : Activity() {
                     startSourcePlayback(
                         originalUrl = url,
                         playbackUrl = resolved.url,
-                        resolvedReferer = resolved.referer
+                        resolvedReferer = resolved.referer,
+                        resolvedMimeType = resolved.mimeType
                     )
                 }
             }
@@ -962,7 +963,8 @@ class PlayerActivity : Activity() {
     private fun startSourcePlayback(
         originalUrl: String,
         playbackUrl: String,
-        resolvedReferer: String? = null
+        resolvedReferer: String? = null,
+        resolvedMimeType: String? = null
     ) {
         startupCheck?.let(handler::removeCallbacks)
         startupCheck = null
@@ -991,7 +993,7 @@ class PlayerActivity : Activity() {
         player?.apply {
             stop()
             clearMediaItems()
-            setMediaItem(buildMediaItem(playbackUrl))
+            setMediaItem(buildMediaItem(playbackUrl, resolvedMimeType))
             prepare()
             playWhenReady = true
         }
@@ -1033,7 +1035,15 @@ class PlayerActivity : Activity() {
                         if (endpointHost != "nhdapi.com" && !endpointHost.endsWith(".nhdapi.com")) return@forEach
                         val apiResponse = fetchProviderPage(endpoint, finalUrl, "application/json") ?: return@forEach
                         val direct = ProviderUrlResolver.extractNhdPlayUrl(apiResponse.body, finalUrl) ?: return@forEach
-                        val resolved = ProviderUrlResolver.ResolvedSource(direct, finalUrl)
+                        val kind = Regex("""(?i)"kind"\s*:\s*"([^"]+)""")
+                            .find(apiResponse.body)?.groupValues?.getOrNull(1)?.lowercase().orEmpty()
+                        val mimeType = when {
+                            kind.contains("hls") || kind.contains("m3u8") -> MimeTypes.APPLICATION_M3U8
+                            kind.contains("dash") || kind.contains("mpd") -> MimeTypes.APPLICATION_MPD
+                            kind.contains("mp4") || kind.contains("progressive") -> MimeTypes.VIDEO_MP4
+                            else -> null
+                        }
+                        val resolved = ProviderUrlResolver.ResolvedSource(direct, finalUrl, mimeType)
                         resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
                         return resolved
                     }
@@ -1152,7 +1162,7 @@ class PlayerActivity : Activity() {
         }.getOrDefault(pageUrl)
     }
 
-    private fun buildMediaItem(url: String): MediaItem {
+    private fun buildMediaItem(url: String, mimeTypeOverride: String? = null): MediaItem {
         val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
         val parsedUri = Uri.parse(url)
         val lowerUrl = url.substringBefore('#').lowercase()
@@ -1162,7 +1172,7 @@ class PlayerActivity : Activity() {
         // its master playlist is exposed as master.txt instead of .m3u8.
         val isEmbedPlayerHls = parsedUri.host.orEmpty().equals("embedplayer2.xyz", ignoreCase = true) &&
             parsedUri.path.orEmpty().contains("/cdn/hls/", ignoreCase = true)
-        val inferredMime = when {
+        val inferredMime = mimeTypeOverride ?: when {
             lowerUrl.contains(".m3u8") || nestedUrl.contains(".m3u8") || isEmbedPlayerHls -> MimeTypes.APPLICATION_M3U8
             lowerUrl.contains(".mpd") || nestedUrl.contains(".mpd") -> MimeTypes.APPLICATION_MPD
             lowerUrl.substringBefore('?').endsWith(".mp4") -> MimeTypes.VIDEO_MP4
