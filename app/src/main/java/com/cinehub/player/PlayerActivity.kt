@@ -70,7 +70,10 @@ class PlayerActivity : Activity() {
         isLive = intent.getBooleanExtra("live", false)
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         seriesId = intent.getStringExtra("series_id").orEmpty()
+        // Never pass an untrusted intent subtitle URI to Media3 (e.g. file:// or content://).
         subtitleUrl = intent.getStringExtra("subtitle_url")
+            ?.trim()
+            ?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
         episodeQueue = parseEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
         val singleUrl = intent.getStringExtra("url") ?: intent.dataString
@@ -345,7 +348,7 @@ class PlayerActivity : Activity() {
 
     private fun buildMediaItem(url: String): MediaItem {
         val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
-        subtitleUrl?.let { subtitle ->
+        subtitleUrl?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)?.let { subtitle ->
             val lower = subtitle.substringBefore('?').lowercase()
             val mime = when {
                 lower.endsWith(".srt") -> "application/x-subrip"
