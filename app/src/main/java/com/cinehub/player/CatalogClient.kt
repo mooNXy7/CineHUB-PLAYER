@@ -1,12 +1,15 @@
 package com.cinehub.player
 
+import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
 import org.json.JSONObject
+import java.io.File
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
@@ -19,6 +22,8 @@ object CatalogClient {
     private const val SAIMO_BASE =
         "https://raw.githubusercontent.com/gabrielsaimo/SaimoPlayer/main/"
     private val executor = Executors.newSingleThreadExecutor()
+    @Volatile private var appContext: Context? = null
+    fun initialize(context: Context) { appContext = context.applicationContext }
     private data class CachedValue(val storedAtMs: Long, val value: Any)
     private val catalogCache = LinkedHashMap<String, CachedValue>(16, 0.75f, true)
     private const val CATALOG_CACHE_TTL_MS = 5 * 60 * 1000L
@@ -85,20 +90,151 @@ object CatalogClient {
      */
     private fun <T : Any> cachedResult(key: String, loader: () -> T): Result<T> {
         readCached<T>(key, allowStale = false)?.let { return Result.success(it) }
+        readDiskCache<T>(key, allowStale = false)?.let {
+            writeMemoryCache(key, it)
+            return Result.success(it)
+        }
         val result = runCatching(loader)
         result.getOrNull()?.let { value ->
-            synchronized(catalogCache) {
-                catalogCache[key] = CachedValue(System.currentTimeMillis(), value)
-                while (catalogCache.size > CATALOG_CACHE_MAX_ENTRIES) {
-                    val firstKey = catalogCache.entries.iterator().next().key
-                    catalogCache.remove(firstKey)
-                }
-            }
+            writeMemoryCache(key, value)
+            writeDiskCache(key, value)
         }
         if (result.isFailure) {
             readCached<T>(key, allowStale = true)?.let { return Result.success(it) }
+            readDiskCache<T>(key, allowStale = true)?.let { return Result.success(it) }
         }
         return result
+    }
+
+    private fun writeMemoryCache(key: String, value: Any) {
+        synchronized(catalogCache) {
+            catalogCache[key] = CachedValue(System.currentTimeMillis(), value)
+            while (catalogCache.size > CATALOG_CACHE_MAX_ENTRIES) {
+                val firstKey = catalogCache.entries.iterator().next().key
+                catalogCache.remove(firstKey)
+            }
+        }
+    }
+
+    private fun cacheDigest(key: String): String =
+        MessageDigest.getInstance("SHA-256").digest(key.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+
+    private fun writeDiskCache(key: String, value: Any) {
+        val context = appContext ?: return
+        val payload = encodeCacheValue(key, value) ?: return
+        val root = JSONObject().put("stored_at", System.currentTimeMillis()).put("payload", payload)
+        val text = root.toString()
+        if (text.length > 2 * 1024 * 1024) return
+        runCatching {
+            val directory = File(context.cacheDir, "catalog-cache")
+            if (!directory.exists()) directory.mkdirs()
+            val target = File(directory, cacheDigest(key) + ".json")
+            val temp = File(directory, cacheDigest(key) + ".tmp")
+            temp.writeText(text, Charsets.UTF_8)
+            if (target.exists()) target.delete()
+            if (!temp.renameTo(target)) {
+                target.writeText(text, Charsets.UTF_8)
+                temp.delete()
+            }
+        }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T : Any> readDiskCache(key: String, allowStale: Boolean): T? {
+        val context = appContext ?: return null
+        val file = File(File(context.cacheDir, "catalog-cache"), cacheDigest(key) + ".json")
+        if (!file.isFile || file.length() !in 1..(2L * 1024 * 1024)) return null
+        return runCatching {
+            val root = JSONObject(file.readText(Charsets.UTF_8))
+            val storedAt = root.optLong("stored_at", 0L)
+            if (storedAt <= 0L || (!allowStale && System.currentTimeMillis() - storedAt > CATALOG_CACHE_TTL_MS)) {
+                return@runCatching null
+            }
+            decodeCacheValue(key, root.optJSONObject("payload") ?: return@runCatching null) as? T
+        }.getOrNull()
+    }
+
+    private fun encodeCacheValue(key: String, value: Any): JSONObject? = when {
+        key == "vod-index" && value is CatalogIndex -> {
+            val categories = JSONObject()
+            value.categories.forEach { (name, pair) ->
+                categories.put(name, JSONObject().put("count", pair.first).put("index_path", pair.second))
+            }
+            JSONObject().put("kind", "index").put("schema_version", value.schemaVersion).put("categories", categories)
+        }
+        key.startsWith("category:") && value is List<*> -> {
+            val array = JSONArray()
+            value.filterIsInstance<CatalogEntry>().forEach { entry ->
+                array.put(JSONObject().put("id", entry.id).put("title", entry.title).put("type", entry.type)
+                    .put("detail_path", entry.detailPath).put("poster_url", entry.posterPath).put("year", entry.year)
+                    .put("genres", JSONArray(entry.genres)).put("subtype", entry.subtype))
+            }
+            JSONObject().put("kind", "entries").put("items", array)
+        }
+        key.startsWith("radios:") && value is List<*> -> {
+            val array = JSONArray()
+            value.filterIsInstance<RadioEntry>().forEach { entry ->
+                array.put(JSONObject().put("id", entry.id).put("name", entry.name)
+                    .put("stream_url", entry.streamUrl).put("genre", entry.genre))
+            }
+            JSONObject().put("kind", "radios").put("items", array)
+        }
+        key.startsWith("channels:") && value is List<*> -> {
+            val array = JSONArray()
+            value.filterIsInstance<ChannelEntry>().forEach { entry ->
+                array.put(JSONObject().put("id", entry.id).put("name", entry.name)
+                    .put("category", entry.category).put("logo_url", entry.logoUrl)
+                    .put("sources", JSONArray(entry.sources)))
+            }
+            JSONObject().put("kind", "channels").put("items", array)
+        }
+        else -> null
+    }
+
+    private fun decodeCacheValue(key: String, payload: JSONObject): Any? = when {
+        key == "vod-index" && payload.optString("kind") == "index" -> {
+            val source = payload.optJSONObject("categories") ?: JSONObject()
+            val categories = mutableMapOf<String, Pair<Int, String>>()
+            val keys = source.keys()
+            while (keys.hasNext()) {
+                val name = keys.next()
+                val item = source.optJSONObject(name) ?: continue
+                categories[name] = item.optInt("count") to item.optString("index_path")
+            }
+            CatalogIndex(payload.optInt("schema_version", 1), categories)
+        }
+        key.startsWith("category:") && payload.optString("kind") == "entries" -> {
+            val array = payload.optJSONArray("items") ?: JSONArray()
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val genreArray = item.optJSONArray("genres") ?: JSONArray()
+                CatalogEntry(
+                    item.optString("id"), item.optString("title"), item.optString("type"),
+                    item.optString("detail_path"), item.optString("poster_url"), item.optString("year"),
+                    (0 until genreArray.length()).map { genreArray.optString(it) }, item.optString("subtype")
+                )
+            }
+        }
+        key.startsWith("radios:") && payload.optString("kind") == "radios" -> {
+            val array = payload.optJSONArray("items") ?: JSONArray()
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                RadioEntry(item.optString("id"), item.optString("name"), item.optString("stream_url"), item.optString("genre"))
+            }
+        }
+        key.startsWith("channels:") && payload.optString("kind") == "channels" -> {
+            val array = payload.optJSONArray("items") ?: JSONArray()
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val sources = item.optJSONArray("sources") ?: JSONArray()
+                ChannelEntry(
+                    item.optString("id"), item.optString("name"), item.optString("category"), item.optString("logo_url"),
+                    (0 until sources.length()).map { sources.optString(it) }.filter(PlaybackUrlPolicy::isSafeHttpUrl)
+                )
+            }
+        }
+        else -> null
     }
 
     @Suppress("UNCHECKED_CAST")
