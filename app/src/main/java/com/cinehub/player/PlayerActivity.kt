@@ -18,12 +18,15 @@ import android.widget.HorizontalScrollView
 import android.widget.Toast
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
@@ -39,6 +42,7 @@ import org.json.JSONArray
 class PlayerActivity : Activity() {
     private lateinit var playerView: PlayerView
     private var player: ExoPlayer? = null
+    private var httpDataSourceFactory: DefaultHttpDataSource.Factory? = null
     private var sourceUrls: List<String> = emptyList()
     private var attempted = mutableSetOf<String>()
     private var currentIndex = 0
@@ -233,7 +237,17 @@ class PlayerActivity : Activity() {
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
+        // Media3's default HTTP client sends a browser-like Accept header and a
+        // stable Android TV user-agent. Some HLS origins reject requests without Accept.
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(
+                "Mozilla/5.0 (Linux; Android 11; Android TV) AppleWebKit/537.36 " +
+                    "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CineHUB-PLAYER/0.2"
+            )
+            .setDefaultRequestProperties(mapOf("Accept" to "*/*"))
+        httpDataSourceFactory = httpFactory
         player = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(this).setDataSourceFactory(httpFactory))
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build().also { exo ->
@@ -595,6 +609,20 @@ class PlayerActivity : Activity() {
             return
         }
 
+        val host = runCatching { Uri.parse(url).host.orEmpty().lowercase() }.getOrDefault("")
+        val requestHeaders = linkedMapOf("Accept" to "*/*")
+        when {
+            host == "embedplayer2.xyz" || host.endsWith(".embedplayer2.xyz") -> {
+                requestHeaders["Referer"] = "https://embedplayer2.xyz/"
+                requestHeaders["Origin"] = "https://embedplayer2.xyz"
+            }
+            host == "dadinhodetapioca.fun" || host.endsWith(".dadinhodetapioca.fun") -> {
+                requestHeaders["Referer"] = "https://dadinhodetapioca.fun/"
+                requestHeaders["Origin"] = "https://dadinhodetapioca.fun"
+            }
+        }
+        httpDataSourceFactory?.setDefaultRequestProperties(requestHeaders)
+
         player?.apply {
             stop()
             clearMediaItems()
@@ -614,6 +642,16 @@ class PlayerActivity : Activity() {
 
     private fun buildMediaItem(url: String): MediaItem {
         val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
+        val lowerUrl = url.substringBefore('#').lowercase()
+        val nestedUrl = runCatching { Uri.parse(url).getQueryParameter("url").orEmpty().lowercase() }
+            .getOrDefault("")
+        val inferredMime = when {
+            lowerUrl.contains(".m3u8") || nestedUrl.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
+            lowerUrl.contains(".mpd") || nestedUrl.contains(".mpd") -> MimeTypes.APPLICATION_MPD
+            lowerUrl.substringBefore('?').endsWith(".mp4") -> MimeTypes.VIDEO_MP4
+            else -> null
+        }
+        if (inferredMime != null) itemBuilder.setMimeType(inferredMime)
         subtitleUrl?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)?.let { subtitle ->
             val lower = subtitle.substringBefore('?').substringBefore('#').lowercase()
             val mime = subtitleMimeTypeOverride ?: when {
