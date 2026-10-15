@@ -41,7 +41,7 @@
 
 ## Fase 4 — Pós-reprodução e catálogo
 - [ ] Cartão do próximo episódio e tela Mais como este.
-- [ ] Confirmação “Ainda está assistindo?” baseada em inatividade/configuração.
+- [x] Confirmação “Ainda está assistindo?” após duas horas sem interação em VOD; pausa o vídeo e permite continuar ou manter pausado.
 - [ ] Cliente CineHUB-ACERVO com cache e atualização incremental.
 - [ ] Testes em TV Box 1 GB, Google TV e Fire TV (perfil de memória já configurável; falta validar em hardware).
 
