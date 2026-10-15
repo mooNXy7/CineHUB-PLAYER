@@ -10,7 +10,7 @@ import android.util.Base64
  * It deliberately builds candidates only; playback success is determined by Media3.
  */
 internal object ProviderUrlResolver {
-    data class ResolvedSource(val url: String, val referer: String)
+    data class ResolvedSource(val url: String, val referer: String, val mimeType: String? = null)
     data class NhdApiConfig(val apiPath: String, val apiKey: String, val providers: List<String>)
 
     private val urlPattern = Regex("""(?i)https?:\\?/\\?/[^\s"'<>\\]{8,4096}""")
