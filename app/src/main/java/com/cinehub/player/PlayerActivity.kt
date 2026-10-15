@@ -446,12 +446,17 @@ class PlayerActivity : Activity() {
         super.onStop()
         if (!isLive) {
             val exo = player
-            val position = exo?.currentPosition ?: 0L
-            val duration = exo?.duration ?: C.TIME_UNSET
-            // Do not resume at the final frame after a completed movie/episode.
-            val savedPosition = if (duration > 0L && position >= duration - 60_000L) 0L else position
-            getSharedPreferences("playback-progress", MODE_PRIVATE).edit()
-                .putLong(contentId, savedPosition).apply()
+            val savedPosition = PlaybackProgressPolicy.positionToPersist(
+                positionMs = exo?.currentPosition ?: -1L,
+                durationMs = exo?.duration ?: C.TIME_UNSET,
+                isReady = exo?.playbackState == Player.STATE_READY,
+                isEnded = exo?.playbackState == Player.STATE_ENDED
+            )
+            // If playback was still buffering/failed, preserve the previous resume point.
+            if (savedPosition != null) {
+                getSharedPreferences("playback-progress", MODE_PRIVATE).edit()
+                    .putLong(contentId, savedPosition).apply()
+            }
         }
     }
 
