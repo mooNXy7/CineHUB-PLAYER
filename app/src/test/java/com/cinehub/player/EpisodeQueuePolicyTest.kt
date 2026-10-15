@@ -2,6 +2,7 @@ package com.cinehub.player
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class EpisodeQueuePolicyTest {
@@ -10,10 +11,10 @@ class EpisodeQueuePolicyTest {
         val start = EpisodeQueuePolicy.windowStart(
             totalEpisodes = 250,
             currentIndex = 220
-        )
+        ) ?: error("A valid current episode must have a window")
 
         assertEquals(150, start)
-        assertTrue(220 >= start!!)
+        assertTrue(220 >= start)
         assertTrue(220 < start + EpisodeQueuePolicy.MAX_EPISODES)
     }
 
@@ -21,8 +22,8 @@ class EpisodeQueuePolicyTest {
     fun queueWindowStartsAtBeginningForEarlyEpisodeAndRejectsInvalidIndexes() {
         assertEquals(0, EpisodeQueuePolicy.windowStart(totalEpisodes = 250, currentIndex = 4))
         assertEquals(0, EpisodeQueuePolicy.windowStart(totalEpisodes = 12, currentIndex = 11))
-        assertEquals(null, EpisodeQueuePolicy.windowStart(totalEpisodes = 12, currentIndex = 12))
-        assertEquals(null, EpisodeQueuePolicy.windowStart(totalEpisodes = 0, currentIndex = 0))
+        assertNull(EpisodeQueuePolicy.windowStart(totalEpisodes = 12, currentIndex = 12))
+        assertNull(EpisodeQueuePolicy.windowStart(totalEpisodes = 0, currentIndex = 0))
     }
 
     @Test
