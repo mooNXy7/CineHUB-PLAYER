@@ -59,6 +59,7 @@ class PlayerActivity : Activity() {
     private var subtitleUrl: String? = null
     private var subtitleMimeTypeOverride: String? = null
     private var startupCheck: Runnable? = null
+    private var startupTimeoutMs = 15_000L
     private val handler = android.os.Handler(mainLooper)
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
@@ -86,6 +87,8 @@ class PlayerActivity : Activity() {
         isRadio = intent.getBooleanExtra("radio", false) ||
             intent.getStringExtra("content_type").equals("radio", ignoreCase = true)
         isLive = intent.getBooleanExtra("live", false) || isRadio
+        startupTimeoutMs = getSharedPreferences("player-settings", MODE_PRIVATE)
+            .getInt("source_timeout_seconds", 15).coerceIn(5, 45) * 1_000L
         radioName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { "Rádio CineHUB" }
         radioGenre = intent.getStringExtra("radio_genre")?.trim().orEmpty()
         contentId = intent.getStringExtra("content_id") ?: "unknown"
@@ -251,7 +254,7 @@ class PlayerActivity : Activity() {
                             // Also protect against a stream that worked initially and then stalls.
                             startupCheck = Runnable {
                                 if (player?.playbackState == Player.STATE_BUFFERING) tryNextSource()
-                            }.also { handler.postDelayed(it, 15_000L) }
+                            }.also { handler.postDelayed(it, startupTimeoutMs) }
                         }
                         if (playbackState == Player.STATE_READY) {
                             startupCheck?.let(handler::removeCallbacks)
@@ -606,7 +609,7 @@ class PlayerActivity : Activity() {
                 player?.playbackState != Player.STATE_ENDED) {
                 tryNextSource()
             }
-        }.also { handler.postDelayed(it, 15_000L) }
+        }.also { handler.postDelayed(it, startupTimeoutMs) }
     }
 
     private fun buildMediaItem(url: String): MediaItem {
