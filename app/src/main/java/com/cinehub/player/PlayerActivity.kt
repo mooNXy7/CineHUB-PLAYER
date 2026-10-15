@@ -36,6 +36,9 @@ import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -71,7 +74,11 @@ class PlayerActivity : Activity() {
     private var introCheckRunnable: Runnable? = null
     private var introPrompt: android.app.AlertDialog? = null
     private var subtitleUrl: String? = null
+    private var originalSubtitleUrl: String? = null
+    private var internalSubtitleFile: File? = null
+    private var subtitleDelayMs = 0L
     private var subtitleMimeTypeOverride: String? = null
+    private val subtitleExecutor = Executors.newSingleThreadExecutor()
     private var startupCheck: Runnable? = null
     private var startupTimeoutMs = 15_000L
     private val handler = android.os.Handler(mainLooper)
@@ -161,6 +168,11 @@ class PlayerActivity : Activity() {
                 text = "Legendas online"
                 contentDescription = "Buscar legendas online ou inserir uma URL externa"
                 setOnClickListener { showSubtitleOptions() }
+            })
+            controls.addView(Button(this).apply {
+                text = "Sincr. legenda"
+                contentDescription = "Ajustar o atraso da legenda externa"
+                setOnClickListener { showSubtitleSyncOptions() }
             })
             controls.addView(Button(this).apply {
                 text = "Estilo legenda"
@@ -760,7 +772,11 @@ class PlayerActivity : Activity() {
         val next = episodeQueue[queueIndex++]
         contentId = next.contentId
         // Subtitle URLs from a previous episode can point to a different timeline.
+        internalSubtitleFile?.delete()
+        internalSubtitleFile = null
+        originalSubtitleUrl = null
         subtitleUrl = null
+        subtitleDelayMs = 0L
         subtitleMimeTypeOverride = null
         tmdbId = next.tmdbId
         seasonNumber = next.season
@@ -882,7 +898,7 @@ class PlayerActivity : Activity() {
             else -> null
         }
         if (inferredMime != null) itemBuilder.setMimeType(inferredMime)
-        subtitleUrl?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)?.let { subtitle ->
+        subtitleUrl?.takeIf(::isAllowedSubtitleLocation)?.let { subtitle ->
             val lower = subtitle.substringBefore('?').substringBefore('#').lowercase()
             val mime = subtitleMimeTypeOverride ?: when {
                 lower.endsWith(".srt") -> "application/x-subrip"
@@ -946,6 +962,125 @@ class PlayerActivity : Activity() {
         }
     }
 
+    private fun isAllowedSubtitleLocation(candidate: String): Boolean {
+        if (PlaybackUrlPolicy.isSafeHttpUrl(candidate)) return true
+        val file = internalSubtitleFile ?: return false
+        val uri = runCatching { Uri.parse(candidate) }.getOrNull() ?: return false
+        return uri.scheme == "file" && uri.path == file.absolutePath
+    }
+
+    private fun showSubtitleSyncOptions() {
+        val source = originalSubtitleUrl ?: subtitleUrl?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
+        if (source.isNullOrBlank()) {
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Sincronizar legenda")
+                .setMessage("Escolha uma legenda externa primeiro. A sincronização ajusta arquivos SRT/VTT sem alterar o vídeo.")
+                .setPositiveButton("Adicionar legenda") { _, _ -> promptExternalSubtitle() }
+                .setNegativeButton("Fechar", null)
+                .show()
+            return
+        }
+        val choices = arrayOf(
+            "−5 segundos · mais cedo",
+            "−2 segundos · mais cedo",
+            "Sincronização original · 0 s",
+            "+2 segundos · mais tarde",
+            "+5 segundos · mais tarde"
+        )
+        val offsets = longArrayOf(-5_000L, -2_000L, 0L, 2_000L, 5_000L)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Sincronização da legenda")
+            .setItems(choices) { _, index ->
+                val offset = offsets.getOrElse(index) { 0L }
+                if (offset == 0L) {
+                    subtitleDelayMs = 0L
+                    internalSubtitleFile?.delete()
+                    internalSubtitleFile = null
+                    subtitleUrl = source
+                    reloadCurrentMediaItemWithSubtitle()
+                } else {
+                    applySubtitleDelay(source, offset)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun applySubtitleDelay(source: String, offsetMs: Long) {
+        val requestedContentId = contentId
+        Toast.makeText(this, "Ajustando sincronização da legenda…", Toast.LENGTH_SHORT).show()
+        subtitleExecutor.execute {
+            val result = runCatching {
+                val connection = (URL(source).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5_000
+                    readTimeout = 7_000
+                    requestMethod = "GET"
+                    setRequestProperty("User-Agent", "CineHUB-PLAYER/0.2")
+                }
+                val rawText = try {
+                    if (connection.responseCode !in 200..299 ||
+                        (connection.contentLength > 0 && connection.contentLength > 4 * 1024 * 1024)
+                    ) error("Arquivo de legenda inválido ou maior que 4 MB")
+                    val output = ByteArrayOutputStream()
+                    connection.inputStream.use { input ->
+                        val buffer = ByteArray(8 * 1024)
+                        var total = 0
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            if (total > 4 * 1024 * 1024) error("Arquivo de legenda maior que 4 MB")
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                    output.toString("UTF-8")
+                } finally {
+                    connection.disconnect()
+                }
+                val shifted = SubtitleSyncPolicy.shiftTimestamps(rawText, offsetMs)
+                if (shifted == rawText) error("Não encontrei timestamps SRT/VTT para ajustar")
+                val extension = if (
+                    subtitleMimeTypeOverride == "application/x-subrip" ||
+                    source.substringBefore('?').lowercase().endsWith(".srt")
+                ) "srt" else "vtt"
+                val file = File(cacheDir, "cinehub-subtitle-${requestedContentId.hashCode()}-${offsetMs}.${extension}")
+                FileOutputStream(file).use { it.write(shifted.toByteArray(Charsets.UTF_8)) }
+                file
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed || contentId != requestedContentId) {
+                    result.getOrNull()?.delete()
+                    return@runOnUiThread
+                }
+                result.fold(
+                    onSuccess = { file ->
+                        internalSubtitleFile?.delete()
+                        internalSubtitleFile = file
+                        subtitleUrl = Uri.fromFile(file).toString()
+                        subtitleDelayMs = offsetMs
+                        reloadCurrentMediaItemWithSubtitle()
+                        Toast.makeText(
+                            this,
+                            "Sincronização aplicada: ${if (offsetMs > 0) "+" else ""}${offsetMs / 1_000}s",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    onFailure = { error ->
+                        Toast.makeText(this, error.message ?: "Não foi possível ajustar a legenda", Toast.LENGTH_LONG).show()
+                    }
+                )
+            }
+        }
+    }
+
+    private fun reloadCurrentMediaItemWithSubtitle() {
+        val url = sourceUrls.getOrNull(currentIndex) ?: return
+        val position = player?.currentPosition ?: 0L
+        player?.setMediaItem(buildMediaItem(url), position)
+        player?.prepare()
+        player?.playWhenReady = true
+    }
+
     private fun showSubtitleOptions() {
         if (tmdbId <= 0) {
             promptExternalSubtitle()
@@ -1005,12 +1140,13 @@ class PlayerActivity : Activity() {
             return
         }
         val url = sourceUrls.getOrNull(currentIndex) ?: return
+        originalSubtitleUrl = candidate
+        internalSubtitleFile?.delete()
+        internalSubtitleFile = null
         subtitleUrl = candidate
+        subtitleDelayMs = 0L
         subtitleMimeTypeOverride = mimeTypeOverride
-        val position = player?.currentPosition ?: 0L
-        player?.setMediaItem(buildMediaItem(url), position)
-        player?.prepare()
-        player?.playWhenReady = true
+        reloadCurrentMediaItemWithSubtitle()
     }
 
     private fun tryNextSource() {
@@ -1086,6 +1222,8 @@ class PlayerActivity : Activity() {
         cancelProgressSave()
         cancelNextEpisodeCountdown()
         posterExecutor.shutdownNow()
+        subtitleExecutor.shutdownNow()
+        internalSubtitleFile?.delete()
         playerView.player = null
         player?.release()
         player = null
