@@ -546,6 +546,7 @@ class MainActivity : Activity() {
                 put("tmdb_id", details.tmdbId)
                 put("season", candidate.season)
                 put("episode", candidate.episode)
+                put("poster_url", details.posterUrl)
             })
         }
         val currentIndex = currentCandidateIndex - start
