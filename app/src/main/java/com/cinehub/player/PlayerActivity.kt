@@ -83,6 +83,8 @@ class PlayerActivity : Activity() {
     private var failureDialogShown = false
     private var stillWatchingRunnable: Runnable? = null
     private var stillWatchingDialog: android.app.AlertDialog? = null
+    private var progressSaveRunnable: Runnable? = null
+    private val progressSaveIntervalMs = 15_000L
     private val stillWatchingIntervalMs = 2L * 60L * 60L * 1_000L
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -296,7 +298,10 @@ class PlayerActivity : Activity() {
                                 if (savedPosition > 0L && (this@PlayerActivity.player?.currentPosition ?: 0L) < 5_000L) {
                                     this@PlayerActivity.player?.seekTo(savedPosition)
                                 }
-                                if (this@PlayerActivity.player?.isPlaying == true) scheduleStillWatchingPrompt()
+                                if (this@PlayerActivity.player?.isPlaying == true) {
+                                    scheduleStillWatchingPrompt()
+                                    scheduleProgressSave()
+                                }
                             }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
                             if (queueIndex < episodeQueue.size) showNextEpisodePrompt() else showMoreLikeThis()
@@ -314,8 +319,14 @@ class PlayerActivity : Activity() {
                         if (isLive && !isRadio && !playWhenReady) {
                             this@PlayerActivity.player?.play()
                         } else if (!isLive) {
-                            if (playWhenReady) scheduleStillWatchingPrompt()
-                            else cancelStillWatchingPrompt()
+                            if (playWhenReady) {
+                                scheduleStillWatchingPrompt()
+                                scheduleProgressSave()
+                            } else {
+                                cancelStillWatchingPrompt()
+                                cancelProgressSave()
+                                persistPlaybackProgress()
+                            }
                         }
                         if (isRadio) {
                             radioExperience?.setPlaybackState(
@@ -331,6 +342,13 @@ class PlayerActivity : Activity() {
                                 isPlaying = isPlaying,
                                 isBuffering = this@PlayerActivity.player?.playbackState == Player.STATE_BUFFERING
                             )
+                        }
+                        if (!isLive) {
+                            if (isPlaying) scheduleProgressSave()
+                            else {
+                                cancelProgressSave()
+                                persistPlaybackProgress()
+                            }
                         }
                     }
                 })
@@ -348,6 +366,43 @@ class PlayerActivity : Activity() {
     override fun onUserInteraction() {
         super.onUserInteraction()
         scheduleStillWatchingPrompt()
+    }
+
+    private fun scheduleProgressSave() {
+        cancelProgressSave()
+        if (isLive || isFinishing || player?.isPlaying != true) return
+        progressSaveRunnable = object : Runnable {
+            override fun run() {
+                progressSaveRunnable = null
+                if (isFinishing || isLive) return
+                persistPlaybackProgress()
+                if (player?.isPlaying == true) {
+                    progressSaveRunnable = this
+                    handler.postDelayed(this, progressSaveIntervalMs)
+                }
+            }
+        }.also { handler.postDelayed(it, progressSaveIntervalMs) }
+    }
+
+    private fun cancelProgressSave() {
+        progressSaveRunnable?.let(handler::removeCallbacks)
+        progressSaveRunnable = null
+    }
+
+    private fun persistPlaybackProgress() {
+        if (isLive) return
+        val exo = player
+        val savedPosition = PlaybackProgressPolicy.positionToPersist(
+            positionMs = exo?.currentPosition ?: -1L,
+            durationMs = exo?.duration ?: C.TIME_UNSET,
+            isReady = exo?.playbackState == Player.STATE_READY,
+            isEnded = exo?.playbackState == Player.STATE_ENDED
+        )
+        // If playback is buffering/failed, preserve the previous resume point.
+        if (savedPosition != null) {
+            getSharedPreferences("playback-progress", MODE_PRIVATE).edit()
+                .putLong(contentId, savedPosition).apply()
+        }
     }
 
     private fun scheduleStillWatchingPrompt() {
@@ -965,20 +1020,8 @@ class PlayerActivity : Activity() {
         stillWatchingDialog?.dismiss()
         stillWatchingDialog = null
         super.onStop()
-        if (!isLive) {
-            val exo = player
-            val savedPosition = PlaybackProgressPolicy.positionToPersist(
-                positionMs = exo?.currentPosition ?: -1L,
-                durationMs = exo?.duration ?: C.TIME_UNSET,
-                isReady = exo?.playbackState == Player.STATE_READY,
-                isEnded = exo?.playbackState == Player.STATE_ENDED
-            )
-            // If playback was still buffering/failed, preserve the previous resume point.
-            if (savedPosition != null) {
-                getSharedPreferences("playback-progress", MODE_PRIVATE).edit()
-                    .putLong(contentId, savedPosition).apply()
-            }
-        }
+        cancelProgressSave()
+        persistPlaybackProgress()
     }
 
     override fun onDestroy() {
@@ -990,6 +1033,7 @@ class PlayerActivity : Activity() {
         cancelStillWatchingPrompt()
         stillWatchingDialog?.dismiss()
         stillWatchingDialog = null
+        cancelProgressSave()
         cancelNextEpisodeCountdown()
         playerView.player = null
         player?.release()
