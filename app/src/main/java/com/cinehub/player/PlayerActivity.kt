@@ -115,9 +115,9 @@ class PlayerActivity : Activity() {
             setOnClickListener { showTrackMenu() }
         })
         controls.addView(Button(this).apply {
-            text = "Legenda externa"
-            contentDescription = "Adicionar legenda por URL"
-            setOnClickListener { promptExternalSubtitle() }
+            text = "Legendas online"
+            contentDescription = "Buscar legendas online ou inserir uma URL externa"
+            setOnClickListener { showSubtitleOptions() }
         })
         controls.addView(Button(this).apply {
             text = "Estilo legenda"
@@ -513,6 +513,42 @@ class PlayerActivity : Activity() {
         ).show()
     }
 
+    private fun showSubtitleOptions() {
+        if (tmdbId <= 0) {
+            promptExternalSubtitle()
+            return
+        }
+        Toast.makeText(this, "Buscando legendas online…", Toast.LENGTH_SHORT).show()
+        SubtitleSearchClient.search(
+            tmdbId = tmdbId,
+            isSeries = seasonNumber > 0,
+            season = seasonNumber,
+            episode = episodeNumber
+        ) { options ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (options.isEmpty()) {
+                    android.app.AlertDialog.Builder(this)
+                        .setTitle("Legendas online")
+                        .setMessage("Não encontrei legendas para este título agora. Você ainda pode inserir uma URL externa.")
+                        .setPositiveButton("Inserir URL") { _, _ -> promptExternalSubtitle() }
+                        .setNegativeButton("Fechar", null)
+                        .show()
+                    return@runOnUiThread
+                }
+                val labels = options.map { it.label }.toTypedArray()
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Legendas online · OpenSubtitles")
+                    .setItems(labels) { _, index ->
+                        options.getOrNull(index)?.let { applyExternalSubtitle(it.url) }
+                    }
+                    .setNeutralButton("Inserir URL") { _, _ -> promptExternalSubtitle() }
+                    .setNegativeButton("Fechar", null)
+                    .show()
+            }
+        }
+    }
+
     private fun promptExternalSubtitle() {
         val input = EditText(this).apply {
             hint = "https://.../legenda.vtt ou .srt"
@@ -525,19 +561,22 @@ class PlayerActivity : Activity() {
             .setView(input)
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Aplicar") { _, _ ->
-                val candidate = input.text?.toString()?.trim().orEmpty()
-                if (!PlaybackUrlPolicy.isSafeHttpUrl(candidate)) {
-                    Toast.makeText(this, "Informe uma URL HTTP(S) válida, com host e sem credenciais.", Toast.LENGTH_SHORT).show()
-                    return@setPositiveButton
-                }
-                subtitleUrl = candidate
-                val position = player?.currentPosition ?: 0L
-                val url = sourceUrls.getOrNull(currentIndex) ?: return@setPositiveButton
-                player?.setMediaItem(buildMediaItem(url), position)
-                player?.prepare()
-                player?.playWhenReady = true
+                applyExternalSubtitle(input.text?.toString()?.trim().orEmpty())
             }
             .show()
+    }
+
+    private fun applyExternalSubtitle(candidate: String) {
+        if (!PlaybackUrlPolicy.isSafeHttpUrl(candidate)) {
+            Toast.makeText(this, "Informe uma URL HTTP(S) válida, com host e sem credenciais.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val url = sourceUrls.getOrNull(currentIndex) ?: return
+        subtitleUrl = candidate
+        val position = player?.currentPosition ?: 0L
+        player?.setMediaItem(buildMediaItem(url), position)
+        player?.prepare()
+        player?.playWhenReady = true
     }
 
     private fun tryNextSource() {
