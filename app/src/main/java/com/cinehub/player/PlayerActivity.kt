@@ -4,6 +4,7 @@ import android.app.Activity
 import android.net.Uri
 import android.graphics.Color
 import android.text.InputType
+import android.util.TypedValue
 import android.view.Gravity
 import android.os.Bundle
 import android.view.KeyEvent
@@ -21,6 +22,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
 
@@ -44,6 +46,8 @@ class PlayerActivity : Activity() {
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
     private lateinit var speedButton: Button
+    private var subtitleLarge = false
+    private var subtitleBackground = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,6 +90,11 @@ class PlayerActivity : Activity() {
             text = "Legenda externa"
             contentDescription = "Adicionar legenda por URL"
             setOnClickListener { promptExternalSubtitle() }
+        })
+        controls.addView(Button(this).apply {
+            text = "Estilo legenda"
+            contentDescription = "Alterar tamanho e fundo da legenda"
+            setOnClickListener { cycleSubtitleStyle() }
         })
         speedButton = Button(this).apply {
             text = "Velocidade 1.0×"
@@ -231,6 +240,29 @@ class PlayerActivity : Activity() {
             )
         }
         return itemBuilder.build()
+    }
+
+    private fun cycleSubtitleStyle() {
+        subtitleLarge = !subtitleLarge
+        subtitleBackground = !subtitleBackground
+        playerView.subtitleView?.apply {
+            setFixedTextSize(TypedValue.COMPLEX_UNIT_SP, if (subtitleLarge) 26f else 20f)
+            setStyle(
+                CaptionStyleCompat(
+                    Color.WHITE,
+                    if (subtitleBackground) Color.argb(190, 0, 0, 0) else Color.TRANSPARENT,
+                    Color.TRANSPARENT,
+                    CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    Color.BLACK,
+                    null
+                )
+            )
+        }
+        Toast.makeText(
+            this,
+            if (subtitleLarge) "Legenda grande · fundo ligado" else "Legenda padrão · fundo desligado",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun promptExternalSubtitle() {
