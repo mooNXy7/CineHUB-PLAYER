@@ -1267,8 +1267,14 @@ class PlayerActivity : Activity() {
             return
         }
 
+        if (isRadio && !isFinishing) {
+            radioExperience?.setPlaybackState(false, errorMessage = "Esta estação falhou. Escolha outra.")
+            showRadioStationPicker()
+            return
+        }
+
         // A broken episode should not strand the user when a later episode is available.
-        if (!isLive && queueIndex < episodeQueue.size && !isFinishing && !failureDialogShown) {
+        if (!isLive && !isRadio && queueIndex < episodeQueue.size && !isFinishing && !failureDialogShown) {
             failureDialogShown = true
             val nextEpisode = episodeQueue[queueIndex]
             android.app.AlertDialog.Builder(this)
