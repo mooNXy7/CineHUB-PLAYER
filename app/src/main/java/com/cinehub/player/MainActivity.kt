@@ -27,6 +27,7 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CatalogClient.initialize(applicationContext)
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
         val root = ScrollView(this).apply {
