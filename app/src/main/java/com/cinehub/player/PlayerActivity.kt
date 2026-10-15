@@ -1503,11 +1503,11 @@ class PlayerActivity : Activity() {
         stillWatchingDialog?.dismiss()
         stillWatchingDialog = null
         backgrounding = true
-        resumeAfterStop = !isFinishing && player?.isPlaying == true
+        resumeAfterStop = !isFinishing && player?.playWhenReady == true
         super.onStop()
         cancelProgressSave()
         persistPlaybackProgress()
-        if (resumeAfterStop) player?.pause()
+        if (!isFinishing) player?.pause()
         playerView.player = null
         radioExperience?.setPlaybackState(false)
     }
