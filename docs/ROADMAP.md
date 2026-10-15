@@ -15,6 +15,7 @@
 - [x] Resolver referências indexadas do SaimoPlayer por meio de `vod/indice.txt` e montar URLs candidatas de mídia.
 - [ ] Implementar resolvedores específicos para páginas embed, cabeçalhos exigidos por provedores e formatos especiais.
 - [x] Implementar controles básicos do Media3, seleção de faixas de áudio/legendas e seletor de velocidade para VOD.
+- [x] Manter os controles do player acessíveis em telas estreitas usando rolagem horizontal e foco compatível com controle remoto.
 - [x] Implementar política para ignorar pausa em LIVE e restauração inicial de posição VOD.
 - [x] Navegar temporadas, episódios e versões de áudio antes de iniciar a reprodução.
 - [ ] Confirmar reprodução de HLS, DASH e MP4 em aparelhos reais (a compilação/empacotamento já passou em CI).
