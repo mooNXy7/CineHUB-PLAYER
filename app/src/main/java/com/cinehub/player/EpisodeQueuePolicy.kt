@@ -10,7 +10,8 @@ internal data class QueuedEpisode(
     val sources: List<String>,
     val tmdbId: Int = 0,
     val season: Int = 0,
-    val episode: Int = 0
+    val episode: Int = 0,
+    val posterUrl: String = ""
 )
 
 internal object EpisodeQueuePolicy {
@@ -53,7 +54,8 @@ internal object EpisodeQueuePolicy {
                     sources = sources,
                     tmdbId = item.tmdbId.coerceAtLeast(0),
                     season = item.season.coerceAtLeast(0),
-                    episode = item.episode.coerceAtLeast(0)
+                    episode = item.episode.coerceAtLeast(0),
+                    posterUrl = item.posterUrl.takeIf(PlaybackUrlPolicy::isSafeHttpUrl).orEmpty()
                 )
             }
             .take(MAX_EPISODES)
