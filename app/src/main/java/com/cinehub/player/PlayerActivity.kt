@@ -75,7 +75,9 @@ class PlayerActivity : Activity() {
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
         val singleUrl = intent.getStringExtra("url") ?: intent.dataString
         sourceUrls = (urls + listOfNotNull(singleUrl))
-            .map(String::trim).filter(String::isNotEmpty).distinct()
+            .map(String::trim)
+            .filter(::isSafeHttpUrl)
+            .distinct()
 
         playerView = PlayerView(this).apply {
             useController = true
@@ -200,6 +202,14 @@ class PlayerActivity : Activity() {
         playSource(0)
     }
 
+    private fun isSafeHttpUrl(value: String): Boolean {
+        val uri = runCatching { Uri.parse(value) }.getOrNull() ?: return false
+        val scheme = uri.scheme?.lowercase()
+        return scheme in setOf("http", "https") &&
+            !uri.host.isNullOrBlank() &&
+            uri.userInfo == null
+    }
+
     private fun parseEpisodeQueue(raw: String): List<QueuedEpisode> {
         if (raw.isBlank()) return emptyList()
         return runCatching {
@@ -211,7 +221,7 @@ class PlayerActivity : Activity() {
                     val sources = buildList {
                         for (i in 0 until urls.length()) {
                             val url = urls.optString(i).trim()
-                            if (url.startsWith("https://") || url.startsWith("http://")) add(url)
+                            if (isSafeHttpUrl(url)) add(url)
                         }
                     }.distinct()
                     if (sources.isNotEmpty()) {
@@ -315,6 +325,10 @@ class PlayerActivity : Activity() {
         }
         currentIndex = index
         val url = sourceUrls[index]
+        if (!isSafeHttpUrl(url)) {
+            tryNextSource()
+            return
+        }
         if (!attempted.add(url)) {
             playSource(index + 1)
             return
@@ -396,8 +410,8 @@ class PlayerActivity : Activity() {
             .setNegativeButton("Cancelar", null)
             .setPositiveButton("Aplicar") { _, _ ->
                 val candidate = input.text?.toString()?.trim().orEmpty()
-                if (!candidate.startsWith("https://") && !candidate.startsWith("http://")) {
-                    Toast.makeText(this, "Informe uma URL HTTP(S) válida.", Toast.LENGTH_SHORT).show()
+                if (!isSafeHttpUrl(candidate)) {
+                    Toast.makeText(this, "Informe uma URL HTTP(S) válida, com host e sem credenciais.", Toast.LENGTH_SHORT).show()
                     return@setPositiveButton
                 }
                 subtitleUrl = candidate
