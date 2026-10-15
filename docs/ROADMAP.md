@@ -34,7 +34,7 @@
 - [x] Evitar diálogos duplicados quando múltiplas falhas de fonte ocorrem quase ao mesmo tempo.
 - [x] Reutilizar a última fonte bem-sucedida no próximo episódio quando o host aparece entre as opções.
 - [x] Normalizar a fila de episódios: remover IDs/URLs duplicados, filtrar URLs inseguras e limitar filas/fontes para proteger aparelhos com pouca memória.
-- [ ] TheIntroDB para intro/recap, com fallback manual.
+- [x] TheIntroDB: consulta assíncrona por TMDB ID e prompt para pular abertura/recap/prévia quando existem marcações válidas; falha da API não interrompe o vídeo.
 - [ ] OpenSubtitles: idioma, tamanho, fundo e sincronização.
 
 ## Fase 4 — Pós-reprodução e catálogo
