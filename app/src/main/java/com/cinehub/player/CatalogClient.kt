@@ -44,7 +44,9 @@ object CatalogClient {
         val type: String,
         val detailPath: String,
         val posterPath: String,
-        val year: String
+        val year: String,
+        val genres: List<String> = emptyList(),
+        val subtype: String = ""
     )
 
     data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
@@ -71,7 +73,9 @@ object CatalogClient {
         val sources: List<PlaybackSource>,
         val episodes: List<EpisodeEntry>,
         val providerRefs: List<ProviderReference> = emptyList(),
-        val tmdbId: Int = 0
+        val tmdbId: Int = 0,
+        val genres: List<String> = emptyList(),
+        val subtype: String = ""
     )
 
     /**
@@ -184,6 +188,8 @@ object CatalogClient {
                 var episodes = emptyList<EpisodeEntry>()
                 var providerRefs = emptyList<ProviderReference>()
                 var tmdbId = 0
+                var genres = emptyList<String>()
+                var subtype = ""
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -194,13 +200,15 @@ object CatalogClient {
                         "seasons" -> episodes = readSeasons(reader)
                         "provider_refs" -> providerRefs = readProviderReferences(reader)
                         "tmdb_id" -> tmdbId = readNullableString(reader).toIntOrNull() ?: 0
+                        "genres" -> genres = readStringArray(reader)
+                        "subtype" -> subtype = readNullableString(reader)
                         else -> reader.skipValue()
                     }
                 }
                 reader.endObject()
                 if (id == wantedId) {
                     reader.close()
-                    return ContentDetails(id, title, type, sources, episodes, providerRefs, tmdbId)
+                    return ContentDetails(id, title, type, sources, episodes, providerRefs, tmdbId, genres, subtype)
                 }
             }
             reader.close()
@@ -372,6 +380,40 @@ object CatalogClient {
      * Loads a small, playable-only channel preview. Records with no direct source are
      * deliberately omitted: pending candidates are metadata, not playable streams.
      */
+    /**
+     * Returns a small genre-matched recommendation set from catalog index metadata.
+     * It deliberately scans only a bounded preview to keep memory/network costs low.
+     */
+    fun loadRelatedPreview(
+        category: String,
+        currentId: String,
+        genres: List<String>,
+        limit: Int = 8,
+        onResult: (Result<List<CatalogEntry>>) -> Unit
+    ) {
+        require(limit in 1..20) { "Recommendation limit must be between 1 and 20" }
+        val normalizedGenres = genres.map { it.trim().lowercase() }.filter(String::isNotBlank).toSet()
+        if (normalizedGenres.isEmpty()) {
+            onResult(Result.success(emptyList()))
+            return
+        }
+        loadCategoryPreview(category, 100) { result ->
+            onResult(result.map { entries ->
+                entries.asSequence()
+                    .filter { it.id != currentId }
+                    .map { entry ->
+                        entry to entry.genres.count { it.trim().lowercase() in normalizedGenres }
+                    }
+                    .filter { it.second > 0 }
+                    .sortedWith(compareByDescending<Pair<CatalogEntry, Int>> { it.second }
+                        .thenBy { it.first.title.lowercase() })
+                    .take(limit)
+                    .map { it.first }
+                    .toList()
+            })
+        }
+    }
+
     fun loadChannelPreview(limit: Int = 60, onResult: (Result<List<ChannelEntry>>) -> Unit) {
         executor.execute {
             onResult(cachedResult("channels:${limit}") {
@@ -526,6 +568,8 @@ object CatalogClient {
                 var detailPath = ""
                 var posterPath = ""
                 var year = ""
+                var genres = emptyList<String>()
+                var subtype = ""
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -535,17 +579,34 @@ object CatalogClient {
                         "detail_path" -> detailPath = readNullableString(reader)
                         "poster_url" -> posterPath = readNullableString(reader)
                         "year" -> year = readNullableString(reader)
+                        "genres" -> genres = readStringArray(reader)
+                        "subtype" -> subtype = readNullableString(reader)
                         else -> reader.skipValue()
                     }
                 }
                 reader.endObject()
-                if (title.isNotBlank()) entries.add(CatalogEntry(id, title, type, detailPath, posterPath, year))
+                if (title.isNotBlank()) entries.add(CatalogEntry(id, title, type, detailPath, posterPath, year, genres, subtype))
             }
             reader.close()
             return entries
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun readStringArray(reader: JsonReader): List<String> {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return emptyList()
+        }
+        val values = mutableListOf<String>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            val value = readNullableString(reader).trim()
+            if (value.isNotBlank()) values.add(value)
+        }
+        reader.endArray()
+        return values.distinct()
     }
 
     private fun readNullableString(reader: JsonReader): String =
