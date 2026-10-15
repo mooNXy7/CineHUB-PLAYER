@@ -1,9 +1,7 @@
 package com.cinehub.player
 
-import android.net.Uri
-import org.json.JSONArray
-import org.json.JSONObject
 import java.net.URL
+import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import android.util.Base64
 
@@ -101,43 +99,48 @@ internal object ProviderUrlResolver {
             .find(html)?.groupValues?.getOrNull(1).orEmpty()
         val rawProviders = Regex("""(?m)\bvar\s+PROVIDER_LIST\s*=\s*(\[[^;]+\])""")
             .find(html)?.groupValues?.getOrNull(1)
-        val providers = runCatching {
-            val array = JSONArray(rawProviders ?: "[]")
-            (0 until minOf(array.length(), 10)).map { array.optString(it) }.filter(String::isNotBlank)
-        }.getOrDefault(emptyList())
+        val providers = Regex("""["']([^"']+)["']""")
+            .findAll(rawProviders.orEmpty())
+            .map { it.groupValues[1] }
+            .filter(String::isNotBlank)
+            .take(10)
+            .toList()
         return NhdApiConfig(path, key, providers)
     }
 
     fun nhdApiEndpoints(config: NhdApiConfig): List<String> {
         val endpoints = linkedSetOf<String>()
         val providers: List<String?> = listOf(null) + config.providers.map { it as String? }
+        val rawBase = config.apiPath.substringBefore('#')
+        val base = rawBase.substringBefore('?')
+        val existingQuery = rawBase.substringAfter('?', "").takeIf(String::isNotBlank)
         providers.forEach { provider ->
-            val builder = Uri.parse(config.apiPath).buildUpon().appendQueryParameter("_ts", "1")
-            if (config.apiKey.isNotBlank()) builder.appendQueryParameter("key", config.apiKey)
+            val params = mutableListOf("_ts=1")
+            if (config.apiKey.isNotBlank()) params += "key=" + URLEncoder.encode(config.apiKey, "UTF-8")
             if (!provider.isNullOrBlank()) {
-                builder.appendQueryParameter("provider", provider)
-                builder.appendQueryParameter("fresh", "1")
+                params += "provider=" + URLEncoder.encode(provider, "UTF-8")
+                params += "fresh=1"
             }
-            val endpoint = builder.build().toString()
+            val query = listOfNotNull(existingQuery) + params
+            val endpoint = base + "?" + query.joinToString("&")
             if (PlaybackUrlPolicy.isSafeHttpUrl(endpoint)) endpoints += endpoint
         }
         return endpoints.toList()
     }
 
     fun extractNhdPlayUrl(jsonText: String, baseUrl: String? = null): String? {
-        val payload = runCatching { JSONObject(jsonText) }.getOrNull() ?: return null
-        if (!payload.optBoolean("success", false)) return null
+        if (!Regex("""(?i)"success"\s*:\s*true""").containsMatchIn(jsonText)) return null
         val candidates = mutableListOf<String>()
-        candidates += payload.optString("playUrl")
-        val tracks = payload.optJSONArray("audioTracks") ?: JSONArray()
-        for (index in 0 until tracks.length()) {
-            val track = tracks.optJSONObject(index) ?: continue
-            candidates += track.optString("url")
-            candidates += track.optString("playUrl")
-            candidates += track.optString("file")
-        }
+        Regex("""(?is)"playUrl"\s*:\s*"((?:\\.|[^"\\])*)"""")
+            .find(jsonText)?.groupValues?.getOrNull(1)?.let(candidates::add)
+        val trackPattern = Regex("""(?is)"(?:url|playUrl|file)"\s*:\s*"((?:\\.|[^"\\])*)"""")
+        trackPattern.findAll(jsonText).forEach { candidates += it.groupValues[1] }
         return candidates.firstNotNullOfOrNull { raw ->
-            if (baseUrl != null) normalizeUrl(raw, baseUrl) else raw.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
+            val decoded = raw.replace("\\/", "/").replace("\\u002F", "/")
+                .replace("\\u003A", ":").replace("\\u0026", "&")
+                .replace("\\\"", "\"").replace("\\\\", "\\")
+            if (baseUrl != null) normalizeUrl(decoded, baseUrl)
+            else decoded.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
         }
     }
 
