@@ -44,6 +44,13 @@ object CatalogClient {
     )
 
     data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
+    data class ChannelEntry(
+        val id: String,
+        val name: String,
+        val category: String,
+        val logoUrl: String,
+        val sources: List<String>
+    )
     data class PlaybackSource(val url: String, val audio: String, val priority: Int, val sourceId: String, val sourceType: String)
     data class ProviderReference(val provider: String, val ref: String, val audio: String, val sourceId: String)
     data class EpisodeEntry(
@@ -322,6 +329,100 @@ object CatalogClient {
         }
         reader.endArray()
         return result.sortedWith(compareBy<EpisodeEntry> { it.season }.thenBy { it.episode }.thenBy { it.audio })
+    }
+
+    /**
+     * Loads a small, playable-only channel preview. Records with no direct source are
+     * deliberately omitted: pending candidates are metadata, not playable streams.
+     */
+    fun loadChannelPreview(limit: Int = 60, onResult: (Result<List<ChannelEntry>>) -> Unit) {
+        executor.execute {
+            onResult(runCatching {
+                require(limit in 1..100) { "Channel preview limit must be between 1 and 100" }
+                val connection = open(BASE + "catalog/channels/channels.json")
+                try {
+                    val status = connection.responseCode
+                    if (status !in 200..299) error("Catálogo de canais respondeu HTTP $status")
+                    val reader = JsonReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                    val entries = ArrayList<ChannelEntry>(limit)
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "channels" -> {
+                                reader.beginArray()
+                                while (reader.hasNext() && entries.size < limit) {
+                                    var id = ""
+                                    var name = ""
+                                    var category = ""
+                                    var logo = ""
+                                    var streamUrl = ""
+                                    var sources = emptyList<String>()
+                                    reader.beginObject()
+                                    while (reader.hasNext()) {
+                                        when (reader.nextName()) {
+                                            "id" -> id = readNullableString(reader)
+                                            "name", "title" -> name = readNullableString(reader)
+                                            "category", "group" -> category = readNullableString(reader)
+                                            "logo_url", "logo" -> logo = readNullableString(reader)
+                                            "stream_url", "url" -> streamUrl = readNullableString(reader)
+                                            "sources" -> sources = readChannelSources(reader)
+                                            else -> reader.skipValue()
+                                        }
+                                    }
+                                    reader.endObject()
+                                    val validSources = (listOf(streamUrl) + sources)
+                                        .map(String::trim)
+                                        .filter(PlaybackUrlPolicy::isSafeHttpUrl)
+                                        .distinct()
+                                    if (name.isNotBlank() && validSources.isNotEmpty()) {
+                                        entries.add(ChannelEntry(id.ifBlank { name.lowercase() }, name, category, logo, validSources))
+                                    }
+                                }
+                                reader.close()
+                                return@runCatching entries
+                            }
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.close()
+                    entries
+                } finally {
+                    connection.disconnect()
+                }
+            })
+        }
+    }
+
+    private fun readChannelSources(reader: JsonReader): List<String> {
+        if (reader.peek() == JsonToken.NULL) {
+            reader.nextNull()
+            return emptyList()
+        }
+        val result = mutableListOf<String>()
+        reader.beginArray()
+        while (reader.hasNext()) {
+            when (reader.peek()) {
+                JsonToken.STRING, JsonToken.NUMBER -> {
+                    val candidate = readNullableString(reader)
+                    if (PlaybackUrlPolicy.isSafeHttpUrl(candidate)) result.add(candidate)
+                }
+                JsonToken.BEGIN_OBJECT -> {
+                    var url = ""
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "url", "stream_url", "uri" -> url = readNullableString(reader)
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.endObject()
+                    if (PlaybackUrlPolicy.isSafeHttpUrl(url)) result.add(url)
+                }
+                else -> reader.skipValue()
+            }
+        }
+        reader.endArray()
+        return result.distinct()
     }
 
     fun loadRadioPreview(limit: Int = 50, onResult: (Result<List<RadioEntry>>) -> Unit) {
