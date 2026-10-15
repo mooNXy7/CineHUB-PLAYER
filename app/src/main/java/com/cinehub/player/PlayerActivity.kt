@@ -1112,7 +1112,7 @@ class PlayerActivity : Activity() {
         )
         val offsets = longArrayOf(-5_000L, -2_000L, 0L, 2_000L, 5_000L)
         android.app.AlertDialog.Builder(this)
-            .setTitle("Sincronização da legenda")
+            .setTitle("Sincronização da legenda · ${if (subtitleDelayMs > 0) "+" else ""}${subtitleDelayMs / 1_000}s")
             .setItems(choices) { _, index ->
                 val offset = offsets.getOrElse(index) { 0L }
                 if (offset == 0L) {
