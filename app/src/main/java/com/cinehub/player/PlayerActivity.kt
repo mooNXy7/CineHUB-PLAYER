@@ -87,6 +87,8 @@ class PlayerActivity : Activity() {
     private val posterExecutor = Executors.newSingleThreadExecutor()
     private val providerResolverExecutor = Executors.newSingleThreadExecutor()
     private val resolvedProviderUrls = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, String>>()
+    private val resolvedEmbedProviderUrls =
+        java.util.concurrent.ConcurrentHashMap<String, Pair<Long, ProviderUrlResolver.ResolvedSource>>()
     private val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
     private var speedIndex = 1
     private lateinit var speedButton: Button
@@ -929,8 +931,8 @@ class PlayerActivity : Activity() {
         }
         val requestToken = ++sourceRequestToken
 
-        if (url.contains("dadinhodetapioca.fun/play/", ignoreCase = true)) {
-            // Resolve the provider page off the main thread. Keep a timeout active
+        if (ProviderUrlResolver.isResolvableProviderPage(url)) {
+            // Resolve provider pages off the main thread. Keep a timeout active
             // during resolution so a slow embed cannot block source failover.
             player?.stop()
             player?.clearMediaItems()
@@ -940,12 +942,16 @@ class PlayerActivity : Activity() {
                     player?.playbackState != Player.STATE_ENDED) tryNextSource()
             }.also { handler.postDelayed(it, startupTimeoutMs) }
             providerResolverExecutor.execute {
-                val resolved = resolveDadinhoUrl(url)
+                val resolved = resolveProviderPage(url)
                 runOnUiThread {
                     if (isFinishing || isDestroyed || currentIndex != index ||
                         sourceRequestToken != requestToken || url !in attempted
                     ) return@runOnUiThread
-                    startSourcePlayback(originalUrl = url, playbackUrl = resolved)
+                    startSourcePlayback(
+                        originalUrl = url,
+                        playbackUrl = resolved.url,
+                        resolvedReferer = resolved.referer
+                    )
                 }
             }
         } else {
@@ -953,12 +959,17 @@ class PlayerActivity : Activity() {
         }
     }
 
-    private fun startSourcePlayback(originalUrl: String, playbackUrl: String) {
+    private fun startSourcePlayback(
+        originalUrl: String,
+        playbackUrl: String,
+        resolvedReferer: String? = null
+    ) {
         startupCheck?.let(handler::removeCallbacks)
         startupCheck = null
         val host = runCatching { Uri.parse(originalUrl).host.orEmpty().lowercase() }.getOrDefault("")
         val requestHeaders = linkedMapOf("Accept" to "*/*")
         val declaredReferer = sourceReferers.getOrNull(currentIndex).orEmpty()
+            .ifBlank { resolvedReferer.orEmpty() }
         if (PlaybackUrlPolicy.isSafeHttpUrl(declaredReferer)) {
             requestHeaders["Referer"] = declaredReferer
             val refererUri = runCatching { Uri.parse(declaredReferer) }.getOrNull()
@@ -988,6 +999,116 @@ class PlayerActivity : Activity() {
             if (player?.playbackState != Player.STATE_READY &&
                 player?.playbackState != Player.STATE_ENDED) tryNextSource()
         }.also { handler.postDelayed(it, startupTimeoutMs) }
+    }
+
+    private data class ProviderPageResponse(val body: String, val finalUrl: String)
+
+    private fun resolveProviderPage(pageUrl: String): ProviderUrlResolver.ResolvedSource {
+        if (pageUrl.contains("dadinhodetapioca.fun/play/", ignoreCase = true)) {
+            val direct = resolveDadinhoUrl(pageUrl)
+            return ProviderUrlResolver.ResolvedSource(direct, "https://dadinhodetapioca.fun/")
+        }
+        val now = System.currentTimeMillis()
+        resolvedEmbedProviderUrls[pageUrl]?.let { (savedAt, result) ->
+            if (now - savedAt < 90 * 60 * 1000L) return result
+        }
+        val pageHost = runCatching { URL(pageUrl).host.lowercase() }.getOrDefault("")
+        val rootReferer = if (pageHost.contains("mgeb.top")) "https://mgeb.top/" else "https://nhdapi.com/"
+        val queue = java.util.ArrayDeque<Pair<String, String>>()
+        ProviderUrlResolver.candidatePages(pageUrl).forEach { queue.addLast(it to rootReferer) }
+        val visited = linkedSetOf<String>()
+
+        while (queue.isNotEmpty() && visited.size < 12) {
+            val (candidate, referer) = queue.removeFirst()
+            if (!PlaybackUrlPolicy.isSafeHttpUrl(candidate) || !visited.add(candidate)) continue
+            val response = fetchProviderPage(candidate, referer, "text/html,*/*") ?: continue
+            val finalUrl = response.finalUrl
+            val finalHost = runCatching { URL(finalUrl).host.lowercase() }.getOrDefault("")
+
+            if (finalHost == "nhdapi.com" || finalHost.endsWith(".nhdapi.com")) {
+                val config = ProviderUrlResolver.parseNhdApiConfig(response.body, finalUrl)
+                if (config != null) {
+                    ProviderUrlResolver.nhdApiEndpoints(config).take(11).forEach { endpoint ->
+                        val endpointHost = runCatching { URL(endpoint).host.lowercase() }.getOrDefault("")
+                        if (endpointHost != "nhdapi.com" && !endpointHost.endsWith(".nhdapi.com")) return@forEach
+                        val apiResponse = fetchProviderPage(endpoint, finalUrl, "application/json") ?: return@forEach
+                        val direct = ProviderUrlResolver.extractNhdPlayUrl(apiResponse.body) ?: return@forEach
+                        val resolved = ProviderUrlResolver.ResolvedSource(direct, finalUrl)
+                        resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
+                        return resolved
+                    }
+                }
+            }
+
+            val mediaUrl = ProviderUrlResolver.extractMediaUrls(response.body, finalUrl).firstOrNull()
+            if (mediaUrl != null) {
+                val resolved = ProviderUrlResolver.ResolvedSource(mediaUrl, finalUrl)
+                resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
+                return resolved
+            }
+
+            ProviderUrlResolver.extractIframeUrls(response.body, finalUrl).forEach { nested ->
+                val nestedHost = runCatching { URL(nested).host.lowercase() }.getOrDefault("")
+                val nestedPath = runCatching { URL(nested).path.lowercase() }.getOrDefault("")
+                if ((nestedHost == "embedplayer2.xyz" || nestedHost.endsWith(".embedplayer2.xyz")) &&
+                    nestedPath.contains("/cdn/hls/")
+                ) {
+                    val resolved = ProviderUrlResolver.ResolvedSource(nested, finalUrl)
+                    resolvedEmbedProviderUrls[pageUrl] = System.currentTimeMillis() to resolved
+                    return resolved
+                }
+                if (ProviderUrlResolver.isResolvableProviderPage(nested)) {
+                    ProviderUrlResolver.candidatePages(nested).forEach { queue.addLast(it to finalUrl) }
+                }
+            }
+        }
+        return ProviderUrlResolver.ResolvedSource(pageUrl, rootReferer)
+    }
+
+    private fun fetchProviderPage(
+        pageUrl: String,
+        referer: String,
+        accept: String
+    ): ProviderPageResponse? {
+        val connection = runCatching {
+            (URL(pageUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 5_000
+                readTimeout = 7_000
+                requestMethod = "GET"
+                setRequestProperty("Accept", accept)
+                setRequestProperty("Referer", referer)
+                setRequestProperty(
+                    "User-Agent",
+                    "Mozilla/5.0 (Linux; Android 11; Android TV) AppleWebKit/537.36 " +
+                        "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 CineHUB-PLAYER/0.2"
+                )
+            }
+        }.getOrNull() ?: return null
+        return try {
+            if (connection.responseCode !in 200..299 ||
+                (connection.contentLength > 0 && connection.contentLength > 2 * 1024 * 1024)
+            ) return null
+            val output = ByteArrayOutputStream()
+            connection.inputStream.use { input ->
+                val buffer = ByteArray(8 * 1024)
+                var total = 0
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    if (total > 2 * 1024 * 1024) return null
+                    output.write(buffer, 0, count)
+                }
+            }
+            ProviderPageResponse(
+                body = output.toString("UTF-8"),
+                finalUrl = connection.url?.toString()?.takeIf(PlaybackUrlPolicy::isSafeHttpUrl) ?: pageUrl
+            )
+        } catch (_: Exception) {
+            null
+        } finally {
+            connection.disconnect()
+        }
     }
 
     private fun resolveDadinhoUrl(pageUrl: String): String {
