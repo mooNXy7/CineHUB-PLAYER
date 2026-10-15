@@ -23,7 +23,7 @@ O código desses projetos será adaptado por módulo, preservando os avisos de l
 
 ## Estado atual
 
-O repositório agora contém um projeto Android Gradle inicial com Kotlin, Media3/ExoPlayer, um módulo `player-core`, tela de teste para streams, tentativa de fontes alternativas, retomada local VOD, seleção de faixas, velocidade e cliente de prévias do CineHUB-ACERVO com leitura incremental. O workflow de CI foi adicionado para gerar um APK de depuração.
+O repositório agora contém um projeto Android Gradle inicial com Kotlin, Media3/ExoPlayer, um módulo `player-core`, tela de teste para streams, tentativa de fontes alternativas, retomada local VOD, seleção de faixas, velocidade e cliente de prévias do CineHUB-ACERVO com leitura incremental e seleção de rádios para reprodução. O workflow de CI foi adicionado para gerar um APK de depuração.
 
 **Validação pendente:** ainda não há confirmação de build verde nem testes em TV Box/Google TV/Fire TV. OpenSubtitles, sincronização fina de legendas, TheIntroDB, painel de episódios e resolução automática por conteúdo ainda não estão completos.
 
