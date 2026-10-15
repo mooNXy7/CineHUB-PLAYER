@@ -25,6 +25,7 @@ object CatalogClient {
     private val executor = Executors.newSingleThreadExecutor()
     @Volatile private var appContext: Context? = null
     fun initialize(context: Context) { appContext = context.applicationContext }
+    fun clearMemoryCache() { synchronized(catalogCache) { catalogCache.clear() } }
     private data class CachedValue(val storedAtMs: Long, val value: Any)
     private val catalogCache = LinkedHashMap<String, CachedValue>(16, 0.75f, true)
     private const val CATALOG_CACHE_TTL_MS = 5 * 60 * 1000L
