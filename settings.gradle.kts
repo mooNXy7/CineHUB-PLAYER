@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "CineHUB-PLAYER"
-include(":app")
+include(":app", ":player-core")
