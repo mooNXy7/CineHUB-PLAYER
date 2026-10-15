@@ -10,6 +10,8 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : Activity() {
     private lateinit var status: TextView
@@ -294,7 +296,8 @@ class MainActivity : Activity() {
                     choosePlaybackSources(
                         details.title + " · T$season E$episodeNumber · " + audioLabel(variant.audio),
                         direct,
-                        id
+                        id,
+                        buildEpisodeQueue(details, season, episodeNumber, variant.audio)
                     )
                 }
             }
@@ -309,7 +312,7 @@ class MainActivity : Activity() {
         else -> audio.uppercase()
     }
 
-    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String) {
+    private fun choosePlaybackSources(title: String, urls: List<String>, contentId: String, episodeQueue: String? = null) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
             android.app.AlertDialog.Builder(this)
@@ -323,7 +326,42 @@ class MainActivity : Activity() {
             putStringArrayListExtra("sources", ArrayList(uniqueUrls))
             putExtra("content_id", contentId)
             putExtra("live", false)
+            episodeQueue?.let { putExtra("episode_queue", it) }
         })
+    }
+
+    private fun buildEpisodeQueue(
+        details: CatalogClient.ContentDetails,
+        season: Int,
+        episodeNumber: Int,
+        preferredAudio: String
+    ): String {
+        val allEpisodes = details.episodes
+            .filter { it.episode > 0 }
+            .distinctBy { it.season to it.episode }
+            .sortedWith(compareBy<CatalogClient.EpisodeEntry> { it.season }.thenBy { it.episode })
+        val currentIndex = allEpisodes.indexOfFirst { it.season == season && it.episode == episodeNumber }
+        if (currentIndex < 0 || currentIndex >= allEpisodes.lastIndex) return "[]"
+        val queue = JSONArray()
+        allEpisodes.drop(currentIndex + 1).forEach { episodeKey ->
+            val variants = details.episodes.filter {
+                it.season == episodeKey.season && it.episode == episodeKey.episode
+            }
+            val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
+                ?.takeIf { it.sources.any(CatalogClient::isDirectPlaybackSource) }
+                ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
+            val urls = selected?.sources.orEmpty()
+                .filter(CatalogClient::isDirectPlaybackSource)
+                .sortedBy { it.priority }.map { it.url }.distinct()
+            if (urls.isNotEmpty()) {
+                queue.put(JSONObject().apply {
+                    put("title", details.title + " · T" + episodeKey.season + " E" + episodeKey.episode)
+                    put("content_id", details.id + "-" + episodeKey.season + "-" + episodeKey.episode + "-" + (selected?.audio ?: ""))
+                    put("sources", JSONArray(urls))
+                })
+            }
+        }
+        return queue.toString()
     }
 
     private fun loadCatalogStatus() {
