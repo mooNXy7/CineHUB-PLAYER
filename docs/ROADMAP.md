@@ -23,12 +23,12 @@
 - [ ] Timeout configurável de início (padrão 15 s) e troca de fonte.
 - [x] Buffer por perfil automático/economia/desempenho, com valores reduzidos para aparelhos de pouca memória.
 - [x] Retomada persistente por item/episódio via armazenamento local.
-- [ ] Política LIVE separada de VOD; live nunca pausa.
+- [x] Política LIVE separada de VOD; live nunca pausa.
 
 ## Fase 3 — Séries e integrações
 - [ ] PainelEpisodios com temporada/episódio.
 - [x] Fila de próximos episódios com aviso de 10 s e autoplay quando existem URLs diretas.
-- [ ] Reutilizar automaticamente a fonte/provedor preferido no próximo episódio.
+- [x] Reutilizar a última fonte bem-sucedida no próximo episódio quando o host aparece entre as opções.
 - [ ] TheIntroDB para intro/recap, com fallback manual.
 - [ ] OpenSubtitles: idioma, tamanho, fundo e sincronização.
 
