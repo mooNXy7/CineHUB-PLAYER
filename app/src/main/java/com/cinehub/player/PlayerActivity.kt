@@ -57,6 +57,7 @@ class PlayerActivity : Activity() {
     private var nextEpisodeDialog: android.app.AlertDialog? = null
     private var nextEpisodeRunnable: Runnable? = null
     private var nextPromptShown = false
+    private var failureDialogShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -300,6 +301,7 @@ class PlayerActivity : Activity() {
         attempted.clear()
         currentIndex = 0
         nextPromptShown = false
+        failureDialogShown = false
         playSource(0)
     }
 
@@ -454,7 +456,8 @@ class PlayerActivity : Activity() {
         }
 
         // A broken episode should not strand the user when a later episode is available.
-        if (!isLive && queueIndex < episodeQueue.size && !isFinishing) {
+        if (!isLive && queueIndex < episodeQueue.size && !isFinishing && !failureDialogShown) {
+            failureDialogShown = true
             val nextEpisode = episodeQueue[queueIndex]
             android.app.AlertDialog.Builder(this)
                 .setTitle("Fontes indisponíveis")
