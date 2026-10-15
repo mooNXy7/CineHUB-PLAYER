@@ -113,7 +113,7 @@ class MainActivity : Activity() {
         sourceTimeoutButton = Button(this).apply {
             setOnClickListener {
                 val prefs = getSharedPreferences("player-settings", MODE_PRIVATE)
-                val current = prefs.getInt("source_timeout_seconds", 15).coerceIn(5, 45)
+                val current = prefs.getInt("source_timeout_seconds", 15).coerceIn(10, 45)
                 val next = when (current) {
                     10 -> 15
                     15 -> 20
@@ -172,7 +172,7 @@ class MainActivity : Activity() {
 
     private fun updateSourceTimeoutLabel() {
         val seconds = getSharedPreferences("player-settings", MODE_PRIVATE)
-            .getInt("source_timeout_seconds", 15).coerceIn(5, 45)
+            .getInt("source_timeout_seconds", 15).coerceIn(10, 45)
         sourceTimeoutButton.text = "Troca automática de fonte: ${seconds}s (pressione para alterar)"
         sourceTimeoutButton.contentDescription = "Tempo de espera antes de trocar uma fonte: ${seconds} segundos"
     }
