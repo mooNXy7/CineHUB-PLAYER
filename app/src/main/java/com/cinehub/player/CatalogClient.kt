@@ -3,6 +3,7 @@ package com.cinehub.player
 import android.content.Context
 import android.util.JsonReader
 import android.util.JsonToken
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.InputStreamReader
