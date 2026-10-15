@@ -38,6 +38,8 @@ object CatalogClient {
         val year: String
     )
 
+    data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
+
     fun loadVodIndex(onResult: (Result<CatalogIndex>) -> Unit) {
         executor.execute {
             onResult(runCatching {
@@ -66,9 +68,54 @@ object CatalogClient {
         }
     }
 
-    fun loadRadios(onResult: (Result<String>) -> Unit) {
+    fun loadRadioPreview(limit: Int = 50, onResult: (Result<List<RadioEntry>>) -> Unit) {
         executor.execute {
-            onResult(runCatching { fetchText(BASE + "catalog/radios/radios.json", 8 * 1024 * 1024) })
+            onResult(runCatching {
+                require(limit in 1..100) { "Radio preview limit must be between 1 and 100" }
+                val connection = open(BASE + "catalog/radios/radios.json")
+                try {
+                    val status = connection.responseCode
+                    if (status !in 200..299) error("Catálogo respondeu HTTP $status")
+                    val reader = JsonReader(InputStreamReader(connection.inputStream, StandardCharsets.UTF_8))
+                    val entries = ArrayList<RadioEntry>(limit)
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "radios" -> {
+                                reader.beginArray()
+                                while (reader.hasNext() && entries.size < limit) {
+                                    var id = ""
+                                    var name = ""
+                                    var stream = ""
+                                    var genre = ""
+                                    reader.beginObject()
+                                    while (reader.hasNext()) {
+                                        when (reader.nextName()) {
+                                            "id" -> id = readNullableString(reader)
+                                            "name" -> name = readNullableString(reader)
+                                            "stream_url" -> stream = readNullableString(reader)
+                                            "genre" -> genre = readNullableString(reader)
+                                            else -> reader.skipValue()
+                                        }
+                                    }
+                                    reader.endObject()
+                                    if (name.isNotBlank() && (stream.startsWith("https://") || stream.startsWith("http://"))) {
+                                        entries.add(RadioEntry(id, name, stream, genre))
+                                    }
+                                }
+                                // We intentionally stop after a bounded preview for low-memory devices.
+                                reader.close()
+                                return@runCatching entries
+                            }
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.close()
+                    entries
+                } finally {
+                    connection.disconnect()
+                }
+            })
         }
     }
 
