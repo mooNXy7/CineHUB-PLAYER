@@ -21,7 +21,7 @@ internal object EpisodeQueuePolicy {
         return items.asSequence()
             .mapNotNull { item ->
                 val id = item.contentId.trim().take(MAX_ID_LENGTH)
-                if (id.isBlank() || !seenIds.add(id)) return@mapNotNull null
+                if (id.isBlank() || id in seenIds) return@mapNotNull null
                 val sources = item.sources.asSequence()
                     .map(String::trim)
                     .filter(PlaybackUrlPolicy::isSafeHttpUrl)
@@ -29,6 +29,7 @@ internal object EpisodeQueuePolicy {
                     .take(MAX_SOURCES_PER_EPISODE)
                     .toList()
                 if (sources.isEmpty()) return@mapNotNull null
+                seenIds.add(id)
                 QueuedEpisode(
                     title = item.title.trim().ifBlank { "Próximo episódio" }.take(MAX_TITLE_LENGTH),
                     contentId = id,
