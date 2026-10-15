@@ -313,7 +313,7 @@ class PlayerActivity : Activity() {
                                         .apply()
                                 }
                             }
-                            if (!isLive) {
+                            if (!isLive && !isRadio) {
                                 val savedPosition = getSharedPreferences("playback-progress", MODE_PRIVATE)
                                     .getLong(contentId, 0L)
                                 if (savedPosition > 0L && (this@PlayerActivity.player?.currentPosition ?: 0L) < 5_000L) {
