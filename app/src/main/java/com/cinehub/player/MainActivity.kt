@@ -175,6 +175,10 @@ class MainActivity : Activity() {
                                 startActivity(Intent(this, PlayerActivity::class.java).apply {
                                     putExtra("url", radio.streamUrl)
                                     putExtra("live", true)
+                                    putExtra("radio", true)
+                                    putExtra("content_type", "radio")
+                                    putExtra("radio_name", radio.name)
+                                    putExtra("radio_genre", radio.genre)
                                     putExtra("content_id", radio.id)
                                 })
                             }
