@@ -47,3 +47,12 @@ O repositório agora contém um projeto Android Gradle inicial com Kotlin, Media
 - `docs/`: decisões de arquitetura, contratos e plano de testes.
 
 Consulte `docs/ARCHITECTURE.md`, `docs/CATALOG-CONTRACT.md` e `docs/ROADMAP.md`.
+
+
+## Modo rádio CineHUB
+
+A reprodução de rádio usa uma tela nativa de áudio dedicada, sem superfície de vídeo nem controles de filme. A tela apresenta a marca CineHUB, nome da estação, gênero, arte sonora/equalizador animado, estado de conexão/reprodução, volume, pausar/retomar e voltar. A animação é decorativa e não captura nem analisa o áudio.
+
+Para abrir o modo rádio, enviar `radio` como booleano ou `content_type=radio` e os metadados opcionais `radio_name` e `radio_genre`. A fonte pode ser passada por `url` ou `sources`; as URLs continuam sujeitas à política de validação HTTP(S). O modo rádio permite pausar e retomar, ao contrário do modo de canais LIVE, que permanece contínuo.
+
+A implementação está no app Android de teste e ainda não foi integrada ao CineHUB TV. A validação de CI não substitui teste auditivo e de navegação em TV Box/Android TV real.
