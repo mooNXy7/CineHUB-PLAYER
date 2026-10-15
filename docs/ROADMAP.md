@@ -29,6 +29,8 @@
 ## Fase 3 — Séries e integrações
 - [ ] PainelEpisodios com temporada/episódio.
 - [x] Fila de próximos episódios com aviso de 10 s e autoplay quando existem URLs diretas.
+- [x] Painel de próximos episódios acessível durante a reprodução por controle remoto, com seleção direta de um item da fila.
+- [x] Evitar diálogos duplicados quando múltiplas falhas de fonte ocorrem quase ao mesmo tempo.
 - [x] Reutilizar a última fonte bem-sucedida no próximo episódio quando o host aparece entre as opções.
 - [x] Normalizar a fila de episódios: remover IDs/URLs duplicados, filtrar URLs inseguras e limitar filas/fontes para proteger aparelhos com pouca memória.
 - [ ] TheIntroDB para intro/recap, com fallback manual.
