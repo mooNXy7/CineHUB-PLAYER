@@ -223,6 +223,7 @@ class PlayerActivity : Activity() {
                                 if (savedPosition > 0L && (this@PlayerActivity.player?.currentPosition ?: 0L) < 5_000L) {
                                     this@PlayerActivity.player?.seekTo(savedPosition)
                                 }
+                                if (this@PlayerActivity.player?.isPlaying == true) scheduleStillWatchingPrompt()
                             }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
                             showNextEpisodePrompt()
