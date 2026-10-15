@@ -17,6 +17,7 @@ Este contrato documenta os dados que o app de teste aceita para reproduzir conte
 |---|---|---|
 | `url` | String | Fonte única HTTP(S) |
 | `sources` | ArrayList<String> | Fontes alternativas em ordem de preferência |
+| `source_referers` | ArrayList<String> | Referer opcional alinhado por índice a cada fonte; usado para enviar Referer/Origin ao servidor |
 | `live` | Boolean | Ativa comportamento LIVE; não pausa por PLAY/PAUSE |
 | `radio` | Boolean | Ativa a tela de áudio dedicada |
 | `content_type` | String | `radio` ou `live` |
