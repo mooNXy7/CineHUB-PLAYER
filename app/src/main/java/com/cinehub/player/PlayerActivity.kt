@@ -112,6 +112,13 @@ class PlayerActivity : Activity() {
             contentDescription = "Alterar tamanho e fundo da legenda"
             setOnClickListener { cycleSubtitleStyle() }
         })
+        if (!isLive && episodeQueue.isNotEmpty()) {
+            controls.addView(Button(this).apply {
+                text = "Episódios"
+                contentDescription = "Abrir lista de próximos episódios"
+                setOnClickListener { showEpisodeQueuePanel() }
+            })
+        }
         speedButton = Button(this).apply {
             text = "Velocidade 1.0×"
             contentDescription = "Alterar velocidade de reprodução"
@@ -227,6 +234,26 @@ class PlayerActivity : Activity() {
             }
             EpisodeQueuePolicy.normalize(parsed)
         }.getOrDefault(emptyList())
+    }
+
+    private fun showEpisodeQueuePanel() {
+        if (episodeQueue.isEmpty()) {
+            Toast.makeText(this, "Não há próximos episódios nesta fila.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = episodeQueue.mapIndexed { index, episode ->
+            (index + 1).toString() + ". " + episode.title
+        }.toTypedArray()
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Próximos episódios")
+            .setItems(labels) { _, index ->
+                if (index in episodeQueue.indices) {
+                    queueIndex = index
+                    playQueuedEpisode()
+                }
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
     }
 
     private fun showNextEpisodePrompt() {
