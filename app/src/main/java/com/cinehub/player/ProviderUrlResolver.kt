@@ -7,6 +7,13 @@ import java.net.URL
  * It deliberately builds candidates only; playback success is determined by Media3.
  */
 internal object ProviderUrlResolver {
+    /** Extracts the signed HLS URL embedded by the authorized Dadinho provider page. */
+    fun extractDadinhoStreamUrl(html: String): String? {
+        val pattern = Regex("""STREAM_URLS\s*=\s*\[\s*"([^"]+)""")
+        val candidate = pattern.find(html)?.groupValues?.getOrNull(1)?.replace("\\/", "/") ?: return null
+        return candidate.takeIf(PlaybackUrlPolicy::isSafeHttpUrl)
+    }
+
     fun resolve(base: String, rawReference: String): String? {
         val normalizedBase = if (base.endsWith("/")) base else "$base/"
         val reference = rawReference.trim()
