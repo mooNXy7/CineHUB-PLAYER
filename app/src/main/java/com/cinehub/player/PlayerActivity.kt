@@ -241,8 +241,12 @@ class PlayerActivity : Activity() {
     }
 
     private fun loadIntroMarkers() {
+        introCheckRunnable?.let(handler::removeCallbacks)
+        introCheckRunnable = null
         introMarkers = emptyList()
         promptedIntroMarkers.clear()
+        introPrompt?.dismiss()
+        introPrompt = null
         if (isLive || tmdbId <= 0) return
         IntroSkipClient.load(tmdbId, seasonNumber, episodeNumber) { markers ->
             runOnUiThread {
