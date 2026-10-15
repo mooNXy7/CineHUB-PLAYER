@@ -16,12 +16,15 @@ class CatalogSourcePolicyTest {
     }
 
     @Test
-    fun rejectsKnownEmbedPagesEvenWhenMislabelledDirect() {
-        assertFalse(CatalogClient.isDirectPlaybackSource(
+    fun admitsEmbedPagesOnlyForSupportedProviderResolvers() {
+        assertTrue(CatalogClient.isDirectPlaybackSource(
             CatalogClient.PlaybackSource("https://nhdapi.com/embed/tv/1/1/1", "leg", 20, "test", "direct")
         ))
-        assertFalse(CatalogClient.isDirectPlaybackSource(
+        assertTrue(CatalogClient.isDirectPlaybackSource(
             CatalogClient.PlaybackSource("https://mgeb.top/embed/1/1/1", "dub", 20, "test", "embed")
+        ))
+        assertFalse(CatalogClient.isDirectPlaybackSource(
+            CatalogClient.PlaybackSource("https://unknown.example/embed/1/1/1", "dub", 20, "test", "embed")
         ))
     }
 
