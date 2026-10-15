@@ -2,14 +2,24 @@
 
 ## Objetivo
 
-Este contrato documenta os dados que o app de teste aceita para reproduzir conteúdo. Ele não significa que o player já foi extraído como biblioteca reutilizável nem que a Activity esteja pública entre aplicativos.
+Este contrato documenta os dados aceitos pelo player e a fronteira segura para chamadas explícitas entre apps. O engine ainda não foi extraído como biblioteca reutilizável.
 
 ## Estado atual
 
 - Package: `com.cinehub.player`
 - Activity de teste: `com.cinehub.player.PlayerActivity`
-- A Activity está com `android:exported="false"`; por isso, outro aplicativo não consegue iniciá-la diretamente neste momento.
-- A integração final deve acontecer após estabilizar o engine: extrair a lógica de reprodução para uma API/módulo reutilizável ou publicar uma Activity pública com validação explícita e contrato versionado. Não se deve alterar `exported` sem definir o limite de confiança.
+- A Activity é exportada apenas para chamadas explícitas e protegida pela permissão de assinatura `com.cinehub.player.permission.PLAYBACK`.
+- O engine Media3 continua dentro do app Android atual; a extração para um módulo reutilizável ainda está pendente.
+
+## Lançamento seguro entre aplicativos
+
+O APK chamador (CineHUB TV) precisa declarar a permissão abaixo e ser assinado com o mesmo certificado do CineHUB PLAYER:
+
+```xml
+<uses-permission android:name="com.cinehub.player.permission.PLAYBACK" />
+```
+
+Use um Intent explícito para `com.cinehub.player/.PlayerActivity`. As URLs recebidas continuam passando pela validação HTTP(S). Não remova a permissão de assinatura nem adicione filtros de Intent públicos para produção.
 
 ## Extras aceitos pelo player de teste
 
@@ -45,6 +55,6 @@ Este contrato documenta os dados que o app de teste aceita para reproduzir conte
 ## Próximos passos para integração real
 
 - Extrair o mecanismo Media3 de `PlayerActivity` para um módulo Android reutilizável e manter o app atual como harness de teste.
-- Definir autenticação/visibilidade da interface pública entre apps.
+- Extrair o mecanismo Media3 para um módulo Android reutilizável e versionar a API de lançamento.
 - Versionar os modelos de fonte com URL, tipo de mídia, idioma, prioridade e cabeçalhos permitidos.
 - Testar navegação, retomada e reprodução em Android TV/TVBox antes de migrar o CineHUB TV.
