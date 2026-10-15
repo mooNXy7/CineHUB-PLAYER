@@ -413,7 +413,7 @@ object CatalogClient {
                                     }
                                 }
                                 reader.close()
-                                return@runCatching entries
+                                return@cachedResult entries
                             }
                             else -> reader.skipValue()
                         }
@@ -496,7 +496,7 @@ object CatalogClient {
                                 }
                                 // We intentionally stop after a bounded preview for low-memory devices.
                                 reader.close()
-                                return@runCatching entries
+                                return@cachedResult entries
                             }
                             else -> reader.skipValue()
                         }
