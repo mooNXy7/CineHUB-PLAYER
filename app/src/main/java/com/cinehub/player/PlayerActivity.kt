@@ -325,7 +325,7 @@ class PlayerActivity : Activity() {
             return
         }
         if (!attempted.add(url)) {
-            playSource(index + 1)
+            tryNextSource()
             return
         }
 
@@ -422,7 +422,7 @@ class PlayerActivity : Activity() {
     private fun tryNextSource() {
         startupCheck?.let(handler::removeCallbacks)
         startupCheck = null
-        val next = sourceUrls.indices.firstOrNull { it > currentIndex && sourceUrls[it] !in attempted }
+        val next = PlaybackSourcePolicy.nextUnattemptedIndex(sourceUrls, currentIndex, attempted)
         if (next != null) playSource(next)
         else {
             Toast.makeText(this, "Não foi possível reproduzir este conteúdo.", Toast.LENGTH_LONG).show()
