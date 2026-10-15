@@ -26,6 +26,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
+import org.json.JSONArray
 
 /**
  * Minimal native playback shell. Launch with:
@@ -49,6 +50,12 @@ class PlayerActivity : Activity() {
     private lateinit var speedButton: Button
     private var subtitleLarge = false
     private var subtitleBackground = true
+    private data class QueuedEpisode(val title: String, val contentId: String, val sources: List<String>)
+    private var episodeQueue: List<QueuedEpisode> = emptyList()
+    private var queueIndex = 0
+    private var nextEpisodeDialog: android.app.AlertDialog? = null
+    private var nextEpisodeRunnable: Runnable? = null
+    private var nextPromptShown = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,6 +68,7 @@ class PlayerActivity : Activity() {
         isLive = intent.getBooleanExtra("live", false)
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         subtitleUrl = intent.getStringExtra("subtitle_url")
+        episodeQueue = parseEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
         val singleUrl = intent.getStringExtra("url") ?: intent.dataString
         sourceUrls = (urls + listOfNotNull(singleUrl))
@@ -157,6 +165,8 @@ class PlayerActivity : Activity() {
                                     this@PlayerActivity.player?.seekTo(savedPosition)
                                 }
                             }
+                        } else if (playbackState == Player.STATE_ENDED && !isLive) {
+                            showNextEpisodePrompt()
                         }
                     }
 
@@ -166,6 +176,71 @@ class PlayerActivity : Activity() {
                     }
                 })
             }
+        playSource(0)
+    }
+
+    private fun parseEpisodeQueue(raw: String): List<QueuedEpisode> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val urls = item.optJSONArray("sources") ?: continue
+                    val sources = buildList {
+                        for (i in 0 until urls.length()) {
+                            val url = urls.optString(i).trim()
+                            if (url.startsWith("https://") || url.startsWith("http://")) add(url)
+                        }
+                    }.distinct()
+                    if (sources.isNotEmpty()) {
+                        add(QueuedEpisode(
+                            item.optString("title", "Próximo episódio"),
+                            item.optString("content_id", "episode-$index"),
+                            sources
+                        ))
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    private fun showNextEpisodePrompt() {
+        if (nextPromptShown || queueIndex >= episodeQueue.size) return
+        nextPromptShown = true
+        val next = episodeQueue[queueIndex]
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("Próximo episódio")
+            .setMessage(next.title + "\n\nReprodução automática em 10 segundos.")
+            .setPositiveButton("Reproduzir agora") { _, _ -> playQueuedEpisode() }
+            .setNegativeButton("Parar") { _, _ -> cancelNextEpisodeCountdown() }
+            .create()
+        nextEpisodeDialog = dialog
+        dialog.setOnCancelListener { cancelNextEpisodeCountdown() }
+        dialog.show()
+        nextEpisodeRunnable = Runnable {
+            if (!isFinishing && nextEpisodeDialog?.isShowing == true) {
+                nextEpisodeDialog?.dismiss()
+                playQueuedEpisode()
+            }
+        }.also { handler.postDelayed(it, 10_000L) }
+    }
+
+    private fun cancelNextEpisodeCountdown() {
+        nextEpisodeRunnable?.let(handler::removeCallbacks)
+        nextEpisodeRunnable = null
+        nextEpisodeDialog = null
+    }
+
+    private fun playQueuedEpisode() {
+        cancelNextEpisodeCountdown()
+        if (queueIndex !in episodeQueue.indices) return
+        val next = episodeQueue[queueIndex++]
+        contentId = next.contentId
+        sourceUrls = next.sources
+        attempted.clear()
+        currentIndex = 0
+        nextPromptShown = false
         playSource(0)
     }
 
@@ -340,6 +415,7 @@ class PlayerActivity : Activity() {
 
     override fun onDestroy() {
         startupCheck?.let(handler::removeCallbacks)
+        cancelNextEpisodeCountdown()
         playerView.player = null
         player?.release()
         player = null
