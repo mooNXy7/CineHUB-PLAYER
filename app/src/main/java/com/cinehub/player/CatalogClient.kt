@@ -256,17 +256,18 @@ object CatalogClient {
         }
 
 
-    /** Reject HTML embed pages unless a provider-specific resolver is implemented. */
+    /** HTML pages are admitted only when a provider-specific resolver is available. */
     fun isDirectPlaybackSource(source: PlaybackSource): Boolean {
         if (!PlaybackUrlPolicy.isSafeHttpUrl(source.url)) return false
         val uri = runCatching { URL(source.url) }.getOrNull() ?: return false
         val host = uri.host.lowercase()
         val path = uri.path.lowercase()
-        val hasDadinhoResolver = host == "dadinhodetapioca.fun" &&
-            path.contains("/play/", ignoreCase = true)
-        if (source.sourceType.equals("embed", ignoreCase = true) && !hasDadinhoResolver) return false
-        if (host == "mgeb.top" || host.endsWith(".mgeb.top") || host == "nhdapi.com" || host.endsWith(".nhdapi.com")) return false
-        if ((path.contains("/embed/") || path.endsWith("/embed")) && !hasDadinhoResolver) return false
+        val hasProviderResolver = ProviderUrlResolver.isResolvableProviderPage(source.url)
+        if (source.sourceType.equals("embed", ignoreCase = true) && !hasProviderResolver) return false
+        if (host == "mgeb.top" || host.endsWith(".mgeb.top") ||
+            host == "nhdapi.com" || host.endsWith(".nhdapi.com")
+        ) return hasProviderResolver
+        if ((path.contains("/embed/") || path.endsWith("/embed")) && !hasProviderResolver) return false
         return true
     }
 
