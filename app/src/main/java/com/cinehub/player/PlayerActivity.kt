@@ -380,6 +380,9 @@ class PlayerActivity : Activity() {
         if (queueIndex !in episodeQueue.indices) return
         val next = episodeQueue[queueIndex++]
         contentId = next.contentId
+        // Subtitle URLs from a previous episode can point to a different timeline.
+        subtitleUrl = null
+        subtitleMimeTypeOverride = null
         tmdbId = next.tmdbId
         seasonNumber = next.season
         episodeNumber = next.episode
