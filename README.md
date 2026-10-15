@@ -23,6 +23,13 @@ O código desses projetos será adaptado por módulo, preservando os avisos de l
 
 ## Estado atual
 
+- Android debug APK compilado e empacotado com sucesso em GitHub Actions; testes unitários do módulo core e tarefa de teste Android também passaram numa execução recente.
+- Prévia incremental do acervo para filmes, séries, animes e doramas; prévia de rádios.
+- Fluxo de seleção por temporada, episódio e versão de áudio, com fila e autoplay de próximos episódios quando o catálogo contém URLs diretas.
+- Perfil de buffer selecionável: automático, economia de memória ou desempenho; no modo automático considera dispositivos Android de pouca RAM.
+- As referências de provedores do acervo são preservadas, mas ainda exigem resolvedores específicos. URLs de páginas embed não são tratadas como streams diretos.
+- Ainda faltam testes em dispositivos reais, integração OpenSubtitles/TheIntroDB e painel de episódios sobreposto ao vídeo.
+
 O repositório agora contém um projeto Android Gradle inicial com Kotlin, Media3/ExoPlayer, um módulo `player-core`, tela de teste para streams, tentativa de fontes alternativas, retomada local VOD, seleção de faixas, velocidade e cliente incremental do CineHUB-ACERVO, prévias de categorias, detalhes e episódios, seleção de rádios e tentativa de reprodução das fontes diretas publicadas. O workflow de CI foi adicionado para gerar um APK de depuração.
 
 **Validação pendente:** ainda não há confirmação de build verde nem testes em TV Box/Google TV/Fire TV. OpenSubtitles, sincronização fina de legendas, TheIntroDB, painel de episódios e resolução automática por conteúdo ainda não estão completos.
