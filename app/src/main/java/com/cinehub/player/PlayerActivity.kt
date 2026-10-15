@@ -86,7 +86,7 @@ class PlayerActivity : Activity() {
                             if (!isLive) {
                                 val savedPosition = getSharedPreferences("playback-progress", MODE_PRIVATE)
                                     .getLong(contentId, 0L)
-                                if (savedPosition > 0L && currentPosition < 5_000L) {
+                                if (savedPosition > 0L && (this@PlayerActivity.player?.currentPosition ?: 0L) < 5_000L) {
                                     seekTo(savedPosition)
                                 }
                             }
