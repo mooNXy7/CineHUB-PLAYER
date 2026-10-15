@@ -44,6 +44,22 @@ class MainActivity : Activity() {
             setPadding(0, 8, 0, 20)
         }
         root.addView(status)
+        val categories = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        listOf(
+            "movies" to "Filmes",
+            "series" to "Séries",
+            "anime" to "Animes",
+            "doramas" to "Doramas"
+        ).forEach { (key, label) ->
+            categories.addView(Button(this).apply {
+                text = label
+                setOnClickListener { showCategoryPreview(key, label) }
+            })
+        }
+        root.addView(categories)
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
             setSingleLine(true)
@@ -80,6 +96,27 @@ class MainActivity : Activity() {
             putExtra("live", live)
             putExtra("content_id", url.hashCode().toString())
         })
+    }
+
+    private fun showCategoryPreview(category: String, label: String) {
+        status.text = "Carregando prévia de $label sem baixar o índice inteiro…"
+        CatalogClient.loadCategoryPreview(category, 30) { result ->
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { entries ->
+                        val titles = entries.joinToString("\n") { entry ->
+                            if (entry.year.isNotBlank()) entry.title + " (" + entry.year + ")" else entry.title
+                        }
+                        status.text = "$label · prévia de ${entries.size} itens\n" + titles
+                        status.setTextColor(Color.WHITE)
+                    },
+                    onFailure = { error ->
+                        status.text = "Não foi possível carregar $label: " + (error.message ?: "erro desconhecido")
+                        status.setTextColor(Color.rgb(255, 190, 150))
+                    }
+                )
+            }
+        }
     }
 
     private fun loadCatalogStatus() {
