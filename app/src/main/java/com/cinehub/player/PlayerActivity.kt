@@ -23,6 +23,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.CaptionStyleCompat
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
@@ -139,6 +140,13 @@ class PlayerActivity : Activity() {
             else -> activityManager.isLowRamDevice ||
                 memoryInfo.totalMem <= 1_536L * 1024L * 1024L
         }
+        val trackSelector = DefaultTrackSelector(this)
+        // Conservative ceiling for low-memory TV boxes; normal devices keep source-native resolution.
+        if (lowMemory) {
+            trackSelector.parameters = trackSelector.buildUponParameters()
+                .setMaxVideoSize(1280, 720)
+                .build()
+        }
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 if (lowMemory) 2_500 else 5_000,
@@ -150,6 +158,7 @@ class PlayerActivity : Activity() {
             .build()
 
         player = ExoPlayer.Builder(this)
+            .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build().also { exo ->
                 playerView.player = exo
