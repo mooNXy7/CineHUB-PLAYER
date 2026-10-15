@@ -328,7 +328,7 @@ class PlayerActivity : Activity() {
                         } else if (playbackState == Player.STATE_ENDED && isRadio) {
                             handler.post { if (!isFinishing && isRadio) tryNextSource() }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
-                            if (queueIndex < episodeQueue.size) showNextEpisodePrompt() else showMoreLikeThis()
+                            handleVodPlaybackEnded()
                         } else if (playbackState == Player.STATE_ENDED && isLive) {
                             // LIVE feeds can end cleanly at protocol level while the source is dead.
                             // Treat that as a source failure and try the next known endpoint.
@@ -629,6 +629,21 @@ class PlayerActivity : Activity() {
                 )
             }
         }
+    }
+
+    private fun handleVodPlaybackEnded() {
+        val exo = player
+        val duration = exo?.duration ?: C.TIME_UNSET
+        val position = exo?.currentPosition ?: 0L
+        val endedPrematurely = when {
+            duration != C.TIME_UNSET && duration > 0L -> position + 10_000L < duration
+            else -> position < 60_000L
+        }
+        if (endedPrematurely && currentIndex + 1 < sourceUrls.size) {
+            tryNextSource()
+            return
+        }
+        if (queueIndex < episodeQueue.size) showNextEpisodePrompt() else showMoreLikeThis()
     }
 
     private fun showMoreLikeThis() {
