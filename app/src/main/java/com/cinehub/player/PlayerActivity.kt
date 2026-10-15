@@ -247,6 +247,12 @@ class PlayerActivity : Activity() {
                                 isBuffering = playbackState == Player.STATE_BUFFERING
                             )
                         }
+                        if (playbackState == Player.STATE_BUFFERING && startupCheck == null) {
+                            // Also protect against a stream that worked initially and then stalls.
+                            startupCheck = Runnable {
+                                if (player?.playbackState == Player.STATE_BUFFERING) tryNextSource()
+                            }.also { handler.postDelayed(it, 15_000L) }
+                        }
                         if (playbackState == Player.STATE_READY) {
                             startupCheck?.let(handler::removeCallbacks)
                             startupCheck = null
@@ -269,6 +275,12 @@ class PlayerActivity : Activity() {
                             }
                         } else if (playbackState == Player.STATE_ENDED && !isLive) {
                             showNextEpisodePrompt()
+                        } else if (playbackState == Player.STATE_ENDED && isLive) {
+                            // LIVE feeds can end cleanly at protocol level while the source is dead.
+                            // Treat that as a source failure and try the next known endpoint.
+                            handler.post {
+                                if (!isFinishing && isLive) tryNextSource()
+                            }
                         }
                     }
 
