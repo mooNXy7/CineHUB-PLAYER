@@ -42,6 +42,7 @@ class PlayerActivity : Activity() {
     private var currentIndex = 0
     private var isLive = false
     private var contentId = "unknown"
+    private var seriesId = ""
     private var subtitleUrl: String? = null
     private var startupCheck: Runnable? = null
     private val handler = android.os.Handler(mainLooper)
@@ -67,6 +68,7 @@ class PlayerActivity : Activity() {
 
         isLive = intent.getBooleanExtra("live", false)
         contentId = intent.getStringExtra("content_id") ?: "unknown"
+        seriesId = intent.getStringExtra("series_id").orEmpty()
         subtitleUrl = intent.getStringExtra("subtitle_url")
         episodeQueue = parseEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
         val urls = intent.getStringArrayListExtra("sources")?.toList().orEmpty()
@@ -158,6 +160,15 @@ class PlayerActivity : Activity() {
                         if (playbackState == Player.STATE_READY) {
                             startupCheck?.let(handler::removeCallbacks)
                             startupCheck = null
+                            if (seriesId.isNotBlank()) {
+                                val activeUrl = sourceUrls.getOrNull(currentIndex).orEmpty()
+                                val host = runCatching { Uri.parse(activeUrl).host.orEmpty() }.getOrDefault("")
+                                if (host.isNotBlank()) {
+                                    getSharedPreferences("player-settings", MODE_PRIVATE).edit()
+                                        .putString("preferred_source_host_$seriesId", host)
+                                        .apply()
+                                }
+                            }
                             if (!isLive) {
                                 val savedPosition = getSharedPreferences("playback-progress", MODE_PRIVATE)
                                     .getLong(contentId, 0L)
@@ -237,7 +248,15 @@ class PlayerActivity : Activity() {
         if (queueIndex !in episodeQueue.indices) return
         val next = episodeQueue[queueIndex++]
         contentId = next.contentId
-        sourceUrls = next.sources
+        val preferredHost = if (seriesId.isNotBlank()) {
+            getSharedPreferences("player-settings", MODE_PRIVATE)
+                .getString("preferred_source_host_$seriesId", null)
+        } else null
+        sourceUrls = if (preferredHost.isNullOrBlank()) next.sources else {
+            next.sources.sortedBy { url ->
+                if (runCatching { Uri.parse(url).host }.getOrNull().equals(preferredHost, ignoreCase = true)) 0 else 1
+            }
+        }
         attempted.clear()
         currentIndex = 0
         nextPromptShown = false
