@@ -121,8 +121,8 @@ class MainActivity : Activity() {
 
     private fun launchPlayer(live: Boolean) {
         val url = streamInput.text?.toString()?.trim().orEmpty()
-        if (!url.startsWith("https://") && !url.startsWith("http://")) {
-            streamInput.error = "Informe uma URL HTTP(S) válida"
+        if (!PlaybackUrlPolicy.isSafeHttpUrl(url)) {
+            streamInput.error = "Informe uma URL HTTP(S) válida, com host e sem credenciais"
             return
         }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
