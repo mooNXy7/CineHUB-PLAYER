@@ -119,6 +119,7 @@ class PlayerActivity : Activity() {
             Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         ))
         setContentView(root)
+        TvUi.style(root)
 
         if (sourceUrls.isEmpty()) {
             Toast.makeText(this, "Nenhuma fonte de reprodução recebida.", Toast.LENGTH_LONG).show()
