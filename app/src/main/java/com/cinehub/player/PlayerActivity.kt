@@ -1288,10 +1288,11 @@ class PlayerActivity : Activity() {
         posterExecutor.shutdownNow()
         providerResolverExecutor.shutdownNow()
         subtitleExecutor.shutdownNow()
-        internalSubtitleFile?.delete()
         playerView.player = null
         player?.release()
         player = null
+        internalSubtitleFile?.delete()
+        internalSubtitleFile = null
         super.onDestroy()
     }
 }
