@@ -407,9 +407,13 @@ class PlayerActivity : Activity() {
     override fun onStop() {
         super.onStop()
         if (!isLive) {
-            val position = player?.currentPosition ?: 0L
+            val exo = player
+            val position = exo?.currentPosition ?: 0L
+            val duration = exo?.duration ?: C.TIME_UNSET
+            // Do not resume at the final frame after a completed movie/episode.
+            val savedPosition = if (duration > 0L && position >= duration - 60_000L) 0L else position
             getSharedPreferences("playback-progress", MODE_PRIVATE).edit()
-                .putLong(contentId, position).apply()
+                .putLong(contentId, savedPosition).apply()
         }
     }
 
