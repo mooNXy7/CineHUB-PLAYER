@@ -177,7 +177,7 @@ class MainActivity : Activity() {
                             val labels = episodes.map { episode ->
                                 "T" + episode.season + " · E" + episode.episode +
                                     " · " + (if (episode.audio == "dub") "Dublado" else if (episode.audio == "leg") "Legendado" else episode.audio) +
-                                    " · " + episode.sources.count { it.sourceType != "embed" } + " fontes diretas"
+                                    " · " + episode.sources.count { CatalogClient.isDirectPlaybackSource(it) } + " fontes diretas"
                             }.toTypedArray()
                             android.app.AlertDialog.Builder(this)
                                 .setTitle(details.title + " · Episódios")
@@ -185,7 +185,7 @@ class MainActivity : Activity() {
                                     val episode = episodes[index]
                                     choosePlaybackSources(
                                         details.title + " · T" + episode.season + "E" + episode.episode,
-                                        episode.sources.filter { it.sourceType != "embed" }.map { it.url },
+                                        episode.sources.filter { CatalogClient.isDirectPlaybackSource(it) }.map { it.url },
                                         details.id + "-" + episode.season + "-" + episode.episode
                                     )
                                 }
@@ -194,7 +194,7 @@ class MainActivity : Activity() {
                         } else {
                             choosePlaybackSources(
                                 details.title,
-                                details.sources.filter { it.sourceType != "embed" }.map { it.url },
+                                details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }.map { it.url },
                                 details.id
                             )
                         }
