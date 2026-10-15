@@ -506,21 +506,65 @@ class PlayerActivity : Activity() {
         if (nextPromptShown || queueIndex >= episodeQueue.size) return
         nextPromptShown = true
         val next = episodeQueue[queueIndex]
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(28, 8, 28, 8)
+        }
+        panel.addView(android.widget.TextView(this).apply {
+            text = next.title
+            textSize = 22f
+            setTextColor(Color.WHITE)
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            maxLines = 2
+        })
+        panel.addView(android.widget.TextView(this).apply {
+            text = if (next.season > 0 && next.episode > 0) {
+                "Temporada ${next.season} · Episódio ${next.episode}"
+            } else {
+                "Próximo item da fila"
+            }
+            textSize = 15f
+            setTextColor(Color.LTGRAY)
+            setPadding(0, 10, 0, 8)
+        })
+        val countdownText = android.widget.TextView(this).apply {
+            text = "Reprodução automática em 10 segundos"
+            textSize = 16f
+            setTextColor(Color.rgb(255, 90, 98))
+            setPadding(0, 8, 0, 8)
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        panel.addView(countdownText)
         val dialog = android.app.AlertDialog.Builder(this)
-            .setTitle("Próximo episódio")
-            .setMessage(next.title + "\n\nReprodução automática em 10 segundos.")
+            .setTitle("Continuar assistindo")
+            .setView(panel)
             .setPositiveButton("Reproduzir agora") { _, _ -> playQueuedEpisode() }
             .setNegativeButton("Parar") { _, _ -> cancelNextEpisodeCountdown() }
             .create()
         nextEpisodeDialog = dialog
         dialog.setOnCancelListener { cancelNextEpisodeCountdown() }
-        dialog.show()
-        nextEpisodeRunnable = Runnable {
-            if (!isFinishing && nextEpisodeDialog?.isShowing == true) {
-                nextEpisodeDialog?.dismiss()
-                playQueuedEpisode()
+        dialog.setOnDismissListener {
+            if (nextEpisodeDialog === dialog) {
+                nextEpisodeRunnable?.let(handler::removeCallbacks)
+                nextEpisodeRunnable = null
+                nextEpisodeDialog = null
             }
-        }.also { handler.postDelayed(it, 10_000L) }
+        }
+        dialog.show()
+        var secondsLeft = 10
+        nextEpisodeRunnable = object : Runnable {
+            override fun run() {
+                if (isFinishing || nextEpisodeDialog?.isShowing != true) return
+                secondsLeft -= 1
+                if (secondsLeft <= 0) {
+                    dialog.dismiss()
+                    playQueuedEpisode()
+                } else {
+                    countdownText.text = "Reprodução automática em ${secondsLeft} segundo(s)"
+                    handler.postDelayed(this, 1_000L)
+                }
+            }
+        }.also { handler.postDelayed(it, 1_000L) }
     }
 
     private fun cancelNextEpisodeCountdown() {
