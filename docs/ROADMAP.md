@@ -9,6 +9,8 @@
 ## Fase 1 — Playback mínimo
 - [x] Criar projeto Android Gradle com módulo Media3 e módulo Kotlin core (build ainda pendente de CI confirmado).
 - [x] Criar tela de teste com URL HTTP(S), reprodução e fontes alternativas.
+- [x] Consultar índice VOD e carregar prévias limitadas de filmes/séries/animes/doramas sem ler o catálogo inteiro.
+- [x] Carregar prévia de rádios e permitir iniciar uma estação selecionada.
 - [x] Implementar controles básicos do Media3, seleção de faixas de áudio/legendas e seletor de velocidade para VOD.
 - [x] Implementar política para ignorar pausa em LIVE e restauração inicial de posição VOD.
 - [ ] Confirmar compilação e reprodução de HLS, DASH e MP4 em aparelhos reais.
