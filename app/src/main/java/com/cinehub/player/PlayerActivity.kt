@@ -43,6 +43,10 @@ class PlayerActivity : Activity() {
     private var attempted = mutableSetOf<String>()
     private var currentIndex = 0
     private var isLive = false
+    private var isRadio = false
+    private var radioName = "Rádio CineHUB"
+    private var radioGenre = ""
+    private var radioExperience: RadioExperienceView? = null
     private var contentId = "unknown"
     private var seriesId = ""
     private var tmdbId = 0
@@ -79,7 +83,11 @@ class PlayerActivity : Activity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 
-        isLive = intent.getBooleanExtra("live", false)
+        isRadio = intent.getBooleanExtra("radio", false) ||
+            intent.getStringExtra("content_type").equals("radio", ignoreCase = true)
+        isLive = intent.getBooleanExtra("live", false) || isRadio
+        radioName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { "Rádio CineHUB" }
+        radioGenre = intent.getStringExtra("radio_genre")?.trim().orEmpty()
         contentId = intent.getStringExtra("content_id") ?: "unknown"
         seriesId = intent.getStringExtra("series_id").orEmpty()
         tmdbId = intent.getIntExtra("tmdb_id", 0).coerceAtLeast(0)
@@ -104,7 +112,8 @@ class PlayerActivity : Activity() {
             .distinct()
 
         playerView = PlayerView(this).apply {
-            useController = true
+            useController = !isRadio
+            if (isRadio) visibility = View.GONE
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             keepScreenOn = true
         }
@@ -113,56 +122,75 @@ class PlayerActivity : Activity() {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         ))
-        val controls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(12, 8, 12, 8)
-            setBackgroundColor(Color.argb(190, 20, 20, 20))
-        }
-        controls.addView(Button(this).apply {
-            text = "Áudio / Legendas"
-            contentDescription = "Selecionar faixas de áudio e legendas"
-            setOnClickListener { showTrackMenu() }
-        })
-        controls.addView(Button(this).apply {
-            text = "Legendas online"
-            contentDescription = "Buscar legendas online ou inserir uma URL externa"
-            setOnClickListener { showSubtitleOptions() }
-        })
-        controls.addView(Button(this).apply {
-            text = "Estilo legenda"
-            contentDescription = "Alterar tamanho e fundo da legenda"
-            setOnClickListener { cycleSubtitleStyle() }
-        })
-        if (!isLive && episodeQueue.isNotEmpty()) {
+        if (!isRadio) {
+            val controls = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+                setPadding(12, 8, 12, 8)
+                setBackgroundColor(Color.argb(190, 20, 20, 20))
+            }
             controls.addView(Button(this).apply {
-                text = "Temporadas / episódios"
-                contentDescription = "Abrir temporadas e episódios disponíveis"
-                setOnClickListener { showSeasonQueuePicker() }
+                text = "Áudio / Legendas"
+                contentDescription = "Selecionar faixas de áudio e legendas"
+                setOnClickListener { showTrackMenu() }
             })
-        }
-        speedButton = Button(this).apply {
-            text = "Velocidade 1.0×"
-            contentDescription = "Alterar velocidade de reprodução"
-            setOnClickListener { cycleSpeed() }
-        }
-        controls.addView(speedButton)
-        // Keep all player actions reachable on narrow TV screens and 720p TV boxes.
-        val controlsScroll = HorizontalScrollView(this).apply {
-            isHorizontalScrollBarEnabled = false
-            isFillViewport = true
-            overScrollMode = View.OVER_SCROLL_NEVER
-            addView(controls, FrameLayout.LayoutParams(
+            controls.addView(Button(this).apply {
+                text = "Legendas online"
+                contentDescription = "Buscar legendas online ou inserir uma URL externa"
+                setOnClickListener { showSubtitleOptions() }
+            })
+            controls.addView(Button(this).apply {
+                text = "Estilo legenda"
+                contentDescription = "Alterar tamanho e fundo da legenda"
+                setOnClickListener { cycleSubtitleStyle() }
+            })
+            if (!isLive && episodeQueue.isNotEmpty()) {
+                controls.addView(Button(this).apply {
+                    text = "Temporadas / episódios"
+                    contentDescription = "Abrir temporadas e episódios disponíveis"
+                    setOnClickListener { showSeasonQueuePicker() }
+                })
+            }
+            speedButton = Button(this).apply {
+                text = "Velocidade 1.0×"
+                contentDescription = "Alterar velocidade de reprodução"
+                setOnClickListener { cycleSpeed() }
+            }
+            controls.addView(speedButton)
+            // Keep all player actions reachable on narrow TV screens and 720p TV boxes.
+            val controlsScroll = HorizontalScrollView(this).apply {
+                isHorizontalScrollBarEnabled = false
+                isFillViewport = true
+                overScrollMode = View.OVER_SCROLL_NEVER
+                addView(controls, FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                ))
+            }
+            // Keep the custom action strip away from Media3's own timeline/controller at the bottom.
+            root.addView(controlsScroll, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
+                Gravity.TOP
+            ))
+    
+        } else {
+            radioExperience = RadioExperienceView(
+                context = this,
+                stationName = radioName,
+                genre = radioGenre,
+                onBack = { finish() },
+                onPlayPause = {
+                    player?.let { exo ->
+                        if (exo.isPlaying) exo.pause() else exo.play()
+                    }
+                }
+            )
+            root.addView(radioExperience, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
             ))
         }
-        // Keep the custom action strip away from Media3's own timeline/controller at the bottom.
-        root.addView(controlsScroll, FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP
-        ))
         setContentView(root)
         TvUi.style(root)
 
@@ -205,12 +233,19 @@ class PlayerActivity : Activity() {
             .setTrackSelector(trackSelector)
             .setLoadControl(loadControl)
             .build().also { exo ->
-                playerView.player = exo
+                if (!isRadio) playerView.player = exo
                 exo.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
+                        if (isRadio) radioExperience?.setPlaybackState(false, errorMessage = "Falha no sinal. Tentando outra fonte…")
                         tryNextSource()
                     }
                     override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (isRadio) {
+                            radioExperience?.setPlaybackState(
+                                isPlaying = this@PlayerActivity.player?.isPlaying == true,
+                                isBuffering = playbackState == Player.STATE_BUFFERING
+                            )
+                        }
                         if (playbackState == Player.STATE_READY) {
                             startupCheck?.let(handler::removeCallbacks)
                             startupCheck = null
@@ -237,12 +272,27 @@ class PlayerActivity : Activity() {
                     }
 
                     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
-                        // LIVE must remain playing even if the controller or remote sends pause.
-                        if (isLive && !playWhenReady) {
+                        // TV channels stay continuous; radio deliberately supports pause/resume.
+                        if (isLive && !isRadio && !playWhenReady) {
                             this@PlayerActivity.player?.play()
                         } else if (!isLive) {
                             if (playWhenReady) scheduleStillWatchingPrompt()
                             else cancelStillWatchingPrompt()
+                        }
+                        if (isRadio) {
+                            radioExperience?.setPlaybackState(
+                                isPlaying = this@PlayerActivity.player?.isPlaying == true,
+                                isBuffering = this@PlayerActivity.player?.playbackState == Player.STATE_BUFFERING
+                            )
+                        }
+                    }
+
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        if (isRadio) {
+                            radioExperience?.setPlaybackState(
+                                isPlaying = isPlaying,
+                                isBuffering = this@PlayerActivity.player?.playbackState == Player.STATE_BUFFERING
+                            )
                         }
                     }
                 })
@@ -518,6 +568,7 @@ class PlayerActivity : Activity() {
             return
         }
         currentIndex = index
+        if (isRadio) radioExperience?.setPlaybackState(false, isBuffering = true)
         val url = sourceUrls[index]
         if (!PlaybackUrlPolicy.isSafeHttpUrl(url)) {
             tryNextSource()
@@ -689,12 +740,18 @@ class PlayerActivity : Activity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (isLive && (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+        if (isLive && !isRadio && (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
                     keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE)) {
             return true
         }
-        if (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE && player != null) {
-            player!!.playWhenReady = !player!!.playWhenReady
+        if ((keyCode == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ||
+                    (isRadio && (keyCode == KeyEvent.KEYCODE_MEDIA_PLAY || keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE))) &&
+            player != null) {
+            if (isRadio) {
+                if (player!!.isPlaying) player!!.pause() else player!!.play()
+            } else {
+                player!!.playWhenReady = !player!!.playWhenReady
+            }
             return true
         }
         return super.onKeyDown(keyCode, event)
