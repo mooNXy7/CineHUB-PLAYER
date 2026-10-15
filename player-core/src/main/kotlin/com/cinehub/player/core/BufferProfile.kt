@@ -19,18 +19,18 @@ data class BufferProfile(
     companion object {
         /** Conservative target for low-memory devices; validate on physical hardware. */
         val LOW_MEMORY = BufferProfile(
-            minBufferMs = 8_000,
-            maxBufferMs = 25_000,
-            playbackBufferMs = 1_000,
-            rebufferMs = 2_000,
+            minBufferMs = 2_500,
+            maxBufferMs = 12_000,
+            playbackBufferMs = 750,
+            rebufferMs = 1_500,
             maxVideoWidth = 1280
         )
 
         val STANDARD = BufferProfile(
-            minBufferMs = 15_000,
-            maxBufferMs = 50_000,
-            playbackBufferMs = 1_500,
-            rebufferMs = 3_000,
+            minBufferMs = 5_000,
+            maxBufferMs = 30_000,
+            playbackBufferMs = 1_000,
+            rebufferMs = 2_000,
             maxVideoWidth = 1920
         )
     }
