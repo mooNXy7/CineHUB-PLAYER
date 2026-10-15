@@ -423,8 +423,8 @@ class MainActivity : Activity() {
         if (currentCandidateIndex < 0) return EpisodeQueuePayload("[]", -1)
 
         val maxWindow = EpisodeQueuePolicy.MAX_EPISODES
-        val start = (currentCandidateIndex - 20).coerceAtLeast(0)
-            .coerceAtMost((candidates.size - maxWindow).coerceAtLeast(0))
+        val start = EpisodeQueuePolicy.windowStart(candidates.size, currentCandidateIndex)
+            ?: return EpisodeQueuePayload("[]", -1)
         val window = candidates.drop(start).take(maxWindow)
         val queue = JSONArray()
         window.forEach { candidate ->
