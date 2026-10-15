@@ -85,7 +85,7 @@ class ProviderUrlResolverTest {
 
     @Test
     fun extractsMediaUrlsAndNormalizesEscapedSlashes() {
-        val html = """<script>var file = "https:\\/\\/cdn.example/video/master.m3u8";</script>"""
+        val html = """<script>var file = "https:\/\/cdn.example/video/master.m3u8";</script>"""
         assertEquals(
             listOf("https://cdn.example/video/master.m3u8"),
             ProviderUrlResolver.extractMediaUrls(html, "https://mgeb.top/embed/123")
