@@ -137,10 +137,11 @@ class PlayerActivity : Activity() {
                 HorizontalScrollView.LayoutParams.WRAP_CONTENT
             ))
         }
+        // Keep the custom action strip away from Media3's own timeline/controller at the bottom.
         root.addView(controlsScroll, FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM
+            Gravity.TOP
         ))
         setContentView(root)
         TvUi.style(root)
