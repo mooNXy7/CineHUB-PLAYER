@@ -59,7 +59,8 @@ object CatalogClient {
         val type: String,
         val sources: List<PlaybackSource>,
         val episodes: List<EpisodeEntry>,
-        val providerRefs: List<ProviderReference> = emptyList()
+        val providerRefs: List<ProviderReference> = emptyList(),
+        val tmdbId: Int = 0
     )
 
     /** Reject catalog entries that are HTML embed pages mislabeled as direct streams. */
@@ -138,6 +139,7 @@ object CatalogClient {
                 var sources = emptyList<PlaybackSource>()
                 var episodes = emptyList<EpisodeEntry>()
                 var providerRefs = emptyList<ProviderReference>()
+                var tmdbId = 0
                 reader.beginObject()
                 while (reader.hasNext()) {
                     when (reader.nextName()) {
@@ -147,13 +149,14 @@ object CatalogClient {
                         "sources" -> sources = readSources(reader)
                         "seasons" -> episodes = readSeasons(reader)
                         "provider_refs" -> providerRefs = readProviderReferences(reader)
+                        "tmdb_id" -> tmdbId = readNullableString(reader).toIntOrNull() ?: 0
                         else -> reader.skipValue()
                     }
                 }
                 reader.endObject()
                 if (id == wantedId) {
                     reader.close()
-                    return ContentDetails(id, title, type, sources, episodes, providerRefs)
+                    return ContentDetails(id, title, type, sources, episodes, providerRefs, tmdbId)
                 }
             }
             reader.close()
