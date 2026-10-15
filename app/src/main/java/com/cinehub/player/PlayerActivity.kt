@@ -132,9 +132,9 @@ class PlayerActivity : Activity() {
             isHorizontalScrollBarEnabled = false
             isFillViewport = true
             overScrollMode = View.OVER_SCROLL_NEVER
-            addView(controls, HorizontalScrollView.LayoutParams(
-                HorizontalScrollView.LayoutParams.WRAP_CONTENT,
-                HorizontalScrollView.LayoutParams.WRAP_CONTENT
+            addView(controls, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
             ))
         }
         // Keep the custom action strip away from Media3's own timeline/controller at the bottom.
