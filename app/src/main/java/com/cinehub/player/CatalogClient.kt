@@ -256,15 +256,17 @@ object CatalogClient {
         }
 
 
-    /** Reject catalog entries that are HTML embed pages mislabeled as direct streams. */
+    /** Reject HTML embed pages unless a provider-specific resolver is implemented. */
     fun isDirectPlaybackSource(source: PlaybackSource): Boolean {
-        if (source.sourceType.equals("embed", ignoreCase = true)) return false
         if (!PlaybackUrlPolicy.isSafeHttpUrl(source.url)) return false
         val uri = runCatching { URL(source.url) }.getOrNull() ?: return false
         val host = uri.host.lowercase()
         val path = uri.path.lowercase()
+        val hasDadinhoResolver = host == "dadinhodetapioca.fun" &&
+            path.contains("/play/", ignoreCase = true)
+        if (source.sourceType.equals("embed", ignoreCase = true) && !hasDadinhoResolver) return false
         if (host == "mgeb.top" || host.endsWith(".mgeb.top") || host == "nhdapi.com" || host.endsWith(".nhdapi.com")) return false
-        if (path.contains("/embed/") || path.endsWith("/embed")) return false
+        if ((path.contains("/embed/") || path.endsWith("/embed")) && !hasDadinhoResolver) return false
         return true
     }
 
