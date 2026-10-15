@@ -24,8 +24,11 @@ Este contrato documenta os dados que o app de teste aceita para reproduzir conte
 | `subtitle_url` | String | Legenda externa HTTP(S) opcional |
 | `tmdb_id` | Int | Identificador usado por OpenSubtitles/TheIntroDB |
 | `series_id` | String | Agrupa progresso/preferência de fonte da série |
+| `catalog_category` | String | Categoria de origem para recomendações (`movies`, `series`, `anime`, `doramas`) |
+| `catalog_item_id` | String | ID exato do item no catálogo, usado para excluir o título atual das recomendações |
+| `catalog_genres` | ArrayList<String> | Gêneros usados na tela “Mais como este” |
 | `season_number`, `episode_number` | Int | Contexto do episódio |
-| `episode_queue` | String JSON | Fila limitada de episódios, cada item com `title`, `content_id`, `sources`, `tmdb_id`, `season` e `episode` |
+| `episode_queue` | String JSON | Fila limitada de episódios, cada item com `title`, `content_id`, `sources`, `tmdb_id`, `season`, `episode` e `poster_url` opcional |
 | `episode_queue_current_index` | Int | Índice do item atual na fila |
 
 ## Regras obrigatórias do chamador
