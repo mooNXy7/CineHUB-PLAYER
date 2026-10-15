@@ -1,6 +1,8 @@
 package com.cinehub.player
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -45,6 +47,25 @@ class ProviderUrlResolverTest {
     @Test
     fun returnsNullWhenProviderMarkupChanges() {
         assertNull(ProviderUrlResolver.extractDadinhoStreamUrl("<html>no playlist here</html>"))
+    }
+
+
+    @Test
+    fun onlyAllowsEmbedPagesWithAnImplementedResolver() {
+        assertTrue(
+            CatalogClient.isDirectPlaybackSource(
+                CatalogClient.PlaybackSource(
+                    "https://dadinhodetapioca.fun/play/movie-123", "", 1, "dadinho", "embed"
+                )
+            )
+        )
+        assertFalse(
+            CatalogClient.isDirectPlaybackSource(
+                CatalogClient.PlaybackSource(
+                    "https://mgeb.top/embed/movie/123", "", 1, "mgeb", "embed"
+                )
+            )
+        )
     }
 
 }
