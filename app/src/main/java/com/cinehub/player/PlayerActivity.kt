@@ -761,11 +761,16 @@ class PlayerActivity : Activity() {
 
     private fun buildMediaItem(url: String): MediaItem {
         val itemBuilder = MediaItem.Builder().setUri(Uri.parse(url))
+        val parsedUri = Uri.parse(url)
         val lowerUrl = url.substringBefore('#').lowercase()
-        val nestedUrl = runCatching { Uri.parse(url).getQueryParameter("url").orEmpty().lowercase() }
+        val nestedUrl = runCatching { parsedUri.getQueryParameter("url").orEmpty().lowercase() }
             .getOrDefault("")
+        // SaimoTV's Android resolver identifies this provider as HLS even though
+        // its master playlist is exposed as master.txt instead of .m3u8.
+        val isEmbedPlayerHls = parsedUri.host.orEmpty().equals("embedplayer2.xyz", ignoreCase = true) &&
+            parsedUri.path.orEmpty().contains("/cdn/hls/", ignoreCase = true)
         val inferredMime = when {
-            lowerUrl.contains(".m3u8") || nestedUrl.contains(".m3u8") -> MimeTypes.APPLICATION_M3U8
+            lowerUrl.contains(".m3u8") || nestedUrl.contains(".m3u8") || isEmbedPlayerHls -> MimeTypes.APPLICATION_M3U8
             lowerUrl.contains(".mpd") || nestedUrl.contains(".mpd") -> MimeTypes.APPLICATION_MPD
             lowerUrl.substringBefore('?').endsWith(".mp4") -> MimeTypes.VIDEO_MP4
             else -> null
