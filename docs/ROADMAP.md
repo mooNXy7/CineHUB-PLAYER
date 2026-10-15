@@ -12,6 +12,7 @@
 - [x] Consultar índice VOD e carregar prévias limitadas de filmes/séries/animes/doramas sem ler o catálogo inteiro.
 - [x] Abrir metadados de um título, extrair fontes/episódios e preservar referências de provedores de forma incremental.
 - [x] Carregar prévia de rádios e permitir iniciar uma estação selecionada.
+- [x] Criar tela de áudio dedicada para rádio com identidade CineHUB, estação/gênero, arte sonora animada, estado de reprodução, volume, pausar/retomar e voltar.
 - [x] Resolver referências indexadas do SaimoPlayer por meio de `vod/indice.txt` e montar URLs candidatas de mídia.
 - [ ] Implementar resolvedores específicos para páginas embed, cabeçalhos exigidos por provedores e formatos especiais.
 - [x] Implementar controles básicos do Media3, seleção de faixas de áudio/legendas e seletor de velocidade para VOD.
