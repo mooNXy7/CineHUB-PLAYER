@@ -1007,6 +1007,7 @@ class PlayerActivity : Activity() {
     }
 
     private fun applySubtitleDelay(source: String, offsetMs: Long) {
+        originalSubtitleUrl = source
         val requestedContentId = contentId
         Toast.makeText(this, "Ajustando sincronização da legenda…", Toast.LENGTH_SHORT).show()
         subtitleExecutor.execute {
@@ -1139,7 +1140,7 @@ class PlayerActivity : Activity() {
             Toast.makeText(this, "Informe uma URL HTTP(S) válida, com host e sem credenciais.", Toast.LENGTH_SHORT).show()
             return
         }
-        val url = sourceUrls.getOrNull(currentIndex) ?: return
+        if (sourceUrls.getOrNull(currentIndex) == null) return
         originalSubtitleUrl = candidate
         internalSubtitleFile?.delete()
         internalSubtitleFile = null
