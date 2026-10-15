@@ -28,11 +28,11 @@ O código desses projetos será adaptado por módulo, preservando os avisos de l
 - Fluxo de seleção por temporada, episódio e versão de áudio, com fila e autoplay de próximos episódios quando o catálogo contém URLs diretas.
 - Perfil de buffer selecionável: automático, economia de memória ou desempenho; no modo automático considera dispositivos Android de pouca RAM.
 - As referências indexadas de provedores são convertidas em URLs candidatas usando `SaimoPlayer/vod/indice.txt`; páginas embed continuam excluídas e ainda precisam de resolvedores próprios. O player permite HTTP legado para fontes antigas, preferindo HTTPS quando disponível.
-- A política de fontes tem testes unitários; ainda faltam testes em dispositivos reais, integração OpenSubtitles/TheIntroDB e painel de episódios sobreposto ao vídeo.
+- A política de fontes e a seleção da próxima fonte têm testes unitários. URLs de reprodução e legendas recebidas por intents são validadas como HTTP(S), com host e sem credenciais. Ainda faltam testes em dispositivos reais, integração OpenSubtitles/TheIntroDB e painel de episódios sobreposto ao vídeo.
 
 O repositório agora contém um projeto Android Gradle inicial com Kotlin, Media3/ExoPlayer, um módulo `player-core`, tela de teste para streams, tentativa de fontes alternativas, retomada local VOD, seleção de faixas, velocidade e cliente incremental do CineHUB-ACERVO, prévias de categorias, detalhes e episódios, seleção de rádios e tentativa de reprodução das fontes diretas publicadas. O workflow de CI foi adicionado para gerar um APK de depuração.
 
-**Validação pendente:** ainda não há confirmação de build verde nem testes em TV Box/Google TV/Fire TV. OpenSubtitles, sincronização fina de legendas, TheIntroDB, painel de episódios e resolução automática por conteúdo ainda não estão completos.
+**Validação atual:** a execução mais recente do GitHub Actions concluiu com sucesso os testes e a compilação do APK de depuração. Isso valida o código em CI, mas não substitui testes de reprodução em TV Box/Google TV/Fire TV. OpenSubtitles, sincronização fina de legendas, TheIntroDB, painel de episódios e resolução automática por conteúdo ainda não estão completos.
 
 ## Arquitetura proposta
 
