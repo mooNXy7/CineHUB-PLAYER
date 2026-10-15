@@ -20,7 +20,7 @@ class SubtitleSyncPolicyTest {
 
     @Test
     fun clampsNegativeTimesAtZero() {
-        val input = "00:00:01.000 --> 00:00:02.000"
+        val input = "00:00:01.000 --> 00:00:03.000"
         val expected = "00:00:00.000 --> 00:00:01.000"
         assertEquals(expected, SubtitleSyncPolicy.shiftTimestamps(input, -2_000L))
     }
