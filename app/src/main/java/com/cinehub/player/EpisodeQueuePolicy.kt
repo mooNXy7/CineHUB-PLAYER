@@ -7,7 +7,10 @@ package com.cinehub.player
 internal data class QueuedEpisode(
     val title: String,
     val contentId: String,
-    val sources: List<String>
+    val sources: List<String>,
+    val tmdbId: Int = 0,
+    val season: Int = 0,
+    val episode: Int = 0
 )
 
 internal object EpisodeQueuePolicy {
@@ -33,7 +36,10 @@ internal object EpisodeQueuePolicy {
                 QueuedEpisode(
                     title = item.title.trim().ifBlank { "Próximo episódio" }.take(MAX_TITLE_LENGTH),
                     contentId = id,
-                    sources = sources
+                    sources = sources,
+                    tmdbId = item.tmdbId.coerceAtLeast(0),
+                    season = item.season.coerceAtLeast(0),
+                    episode = item.episode.coerceAtLeast(0)
                 )
             }
             .take(MAX_EPISODES)
