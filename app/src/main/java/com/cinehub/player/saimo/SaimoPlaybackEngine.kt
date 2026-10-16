@@ -156,7 +156,7 @@ class SaimoPlaybackEngine(
 
     private fun advance(error: PlaybackException?) {
         if (closed) return
-        handler.removeCallbacks(startupDeadline)
+        cancelStartupDeadline()
         lastError = error ?: lastError
         val next = sources.indices.firstOrNull { it !in attempted }
         if (next == null) {
