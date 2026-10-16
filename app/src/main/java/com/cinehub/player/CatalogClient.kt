@@ -44,7 +44,7 @@ object CatalogClient {
     )
 
     data class RadioEntry(val id: String, val name: String, val streamUrl: String, val genre: String)
-    data class PlaybackSource(val url: String, val audio: String, val priority: Int, val sourceId: String, val sourceType: String)
+    data class PlaybackSource(val url: String, val audio: String, val priority: Int, val sourceId: String, val sourceType: String, val referer: String = "")
     data class ProviderReference(val provider: String, val ref: String, val audio: String, val sourceId: String)
     data class EpisodeEntry(
         val season: Int,
@@ -221,6 +221,7 @@ object CatalogClient {
             var priority = 100
             var sourceId = ""
             var sourceType = ""
+            var referer = ""
             reader.beginObject()
             while (reader.hasNext()) {
                 when (reader.nextName()) {
@@ -229,12 +230,13 @@ object CatalogClient {
                     "priority" -> priority = readNullableString(reader).toIntOrNull() ?: 100
                     "source_id" -> sourceId = readNullableString(reader)
                     "source_type" -> sourceType = readNullableString(reader)
+                    "referer" -> referer = readNullableString(reader)
                     else -> reader.skipValue()
                 }
             }
             reader.endObject()
             if (PlaybackUrlPolicy.isSafeHttpUrl(url)) {
-                result.add(PlaybackSource(url, audio, priority, sourceId, sourceType))
+                result.add(PlaybackSource(url, audio, priority, sourceId, sourceType, referer))
             }
         }
         reader.endArray()
