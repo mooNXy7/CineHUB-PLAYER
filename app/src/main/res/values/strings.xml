@@ -45,4 +45,26 @@
     <string name="player_qualidade_reduzida">Internet lenta: qualidade reduzida para o vídeo não travar</string>
     <string name="player_assistir_agora">Assistir agora</string>
     <string name="player_ver_creditos">Ver créditos</string>
+    <string name="player_eps_dica">Esquerda e direita escolhem · em cima troca a temporada · OK assiste · VOLTAR fecha</string>
+    <string name="player_eps_assistindo">Assistindo</string>
+    <string name="player_visto">Visto</string>
+    <string name="player_eps_no_ar">Assistindo T%1$d E%2$d</string>
+    <string name="player_eps_dica_toque">Toque para assistir · toque fora para fechar</string>
+    <string name="vr_fechar">Fechar</string>
+    <string name="vod_temporada">Temporada %1$d</string>
+    <string name="vod_episodio">Episódio %1$d</string>
+    <string name="player_audio_item">Áudio: %1$s</string>
+    <string name="player_sem_legenda">Sem legenda</string>
+    <string name="player_legenda_item">Legenda: %1$s</string>
+    <string name="player_sincronia_legenda">Sincronia da legenda</string>
+    <string name="player_tamanho_legenda">Tamanho da legenda</string>
+    <string name="faixas_so_uma">Este vídeo tem só um áudio e nenhuma legenda.</string>
+    <string name="player_sincronia_original">Original</string>
+    <string name="player_sincronia_atrasar">Atrasar %1$s s</string>
+    <string name="player_sincronia_adiantar">Adiantar %1$s s</string>
+    <string name="player_qualidade_auto">Automática</string>
+    <string name="player_qualidade_auto_dica">ajusta à sua internet</string>
+    <string name="player_qualidade_unica">Este vídeo tem uma qualidade só</string>
+    <string name="player_idioma_padrao">Original</string>
+    <string name="vr_mostrar_controles">Mostrar controles</string>
 </resources>
