@@ -70,20 +70,19 @@ class SaimoPlaybackEngine(
     private var startedAtPosition = 0L
     private var closed = false
 
-    private val startupDeadline = Runnable {
-        if (!closed && player.playbackState != Player.STATE_READY &&
-            player.playbackState != Player.STATE_ENDED) {
-            advance(lastError = null)
-        }
-    }
-
+    private var startupDeadline: Runnable? = null
     private var lastError: PlaybackException? = null
+
+    private fun cancelStartupDeadline() {
+        startupDeadline?.let(handler::removeCallbacks)
+        startupDeadline = null
+    }
 
     init {
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
-                    handler.removeCallbacks(startupDeadline)
+                    cancelStartupDeadline()
                 }
                 emit()
             }
@@ -141,13 +140,13 @@ class SaimoPlaybackEngine(
             player.prepare()
             player.seekTo(resumeAt.coerceAtLeast(0L))
             player.playWhenReady = true
-            handler.postDelayed({
+            startupDeadline = Runnable {
                 if (!closed && generation == myGeneration &&
                     player.playbackState != Player.STATE_READY &&
                     player.playbackState != Player.STATE_ENDED) {
                     advance(lastError)
                 }
-            }, SOURCE_TIMEOUT_MS)
+            }.also { handler.postDelayed(it, SOURCE_TIMEOUT_MS) }
             emit()
         } catch (failure: Throwable) {
             lastError = PlaybackException("Source initialization failed: ${failure.message}", failure, C.ERROR_CODE_IO_UNSPECIFIED)
