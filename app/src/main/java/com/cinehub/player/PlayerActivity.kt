@@ -244,6 +244,9 @@ class PlayerActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         val novoAlvo = Alvo.de(intent) ?: return
+        val kind = intent.getStringExtra("content_type").orEmpty().lowercase()
+        isLiveStream = kind in setOf("live", "tv", "channel", "canal", "iptv")
+        isRadioStream = kind == "radio"
         alvo = novoAlvo
         titulo.text = Generos.semAno(alvo.titulo)
         versao = intent.getStringExtra(VERSAO) ?: Preferencias.versao
@@ -306,7 +309,13 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private suspend fun preparar() {
-        val directUrls = (runCatching { intent.getStringArrayListExtra("sources")?.toList().orEmpty() }.getOrDefault(emptyList()) +
+        val arraySources = runCatching { intent.getStringArrayListExtra("sources")?.toList().orEmpty() }.getOrDefault(emptyList())
+        val encodedSources = runCatching { intent.getStringExtra("sources_json") ?: intent.getStringExtra("sources") }.getOrNull()
+        val jsonSources = runCatching {
+            val array = JSONArray(encodedSources.orEmpty())
+            buildList { for (i in 0 until minOf(array.length(), 30)) add(array.optString(i)) }
+        }.getOrDefault(emptyList())
+        val directUrls = (arraySources + jsonSources +
             listOfNotNull(intent.getStringExtra(EXTRA_DIRECT_URL), intent.getStringExtra("url"), intent.dataString))
             .map(String::trim)
             .filter(PlaybackUrlPolicy::isSafeHttpUrl)
