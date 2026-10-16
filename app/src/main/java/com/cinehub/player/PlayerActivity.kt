@@ -146,7 +146,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var resolvido: Titulos.Resolvido? = null
     private var ep: Titulos.Ep? = null
-    private var versao = Preferencias.versao
+    private var versao = "dub"
     private var opcoes: List<Titulos.Opcao> = emptyList()
     private var fonte = 0
     /// Fontes já tentadas neste episódio (a automática pula as tentadas).
@@ -205,7 +205,7 @@ class PlayerActivity : AppCompatActivity() {
         proximo = findViewById(R.id.playerProximo)
         aviso = findViewById(R.id.playerAviso)
 
-        intent.getStringExtra(VERSAO)?.let { versao = it }
+        versao = intent.getStringExtra(VERSAO) ?: Preferencias.versao
         titulo.text = Generos.semAno(alvo.titulo)
         status.text = getString(R.string.player_abrindo)
         estiloDaLegenda()
@@ -299,7 +299,7 @@ class PlayerActivity : AppCompatActivity() {
         val directUrls = (intent.getStringArrayListExtra("sources")?.toList().orEmpty() +
             listOfNotNull(intent.getStringExtra(EXTRA_DIRECT_URL), intent.getStringExtra("url"), intent.dataString))
             .map(String::trim)
-            .filter { it.startsWith("https://", true) || it.startsWith("http://", true) }
+            .filter(PlaybackUrlPolicy::isSafeHttpUrl)
             .distinct()
             .take(30)
         val queue = parseCineHubEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
@@ -909,7 +909,7 @@ class PlayerActivity : AppCompatActivity() {
                     isFocusable = true
                     setPadding(dp(4), dp(4), dp(4), dp(8))
                     layoutParams = LinearLayout.LayoutParams(dp(198), dp(270)).apply { marginEnd = dp(12) }
-                    setOnClickListener { FichaActivity.abrir(this@PlayerActivity, alvoSugerido) }
+                    setOnClickListener { Toast.makeText(this@PlayerActivity, "Abra este título pelo catálogo CineHUB para reproduzi-lo.", Toast.LENGTH_SHORT).show() }
                     addView(capa)
                     addView(TextView(this@PlayerActivity).apply {
                         text = Generos.semAno(achado.titulo)
