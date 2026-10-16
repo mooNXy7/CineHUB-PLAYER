@@ -130,7 +130,7 @@ class SaimoPlaybackEngine(
         }
         generation++
         val myGeneration = generation
-        handler.removeCallbacks(startupDeadline)
+        cancelStartupDeadline()
         currentIndex = index
         val resumeAt = if (player.playbackState == Player.STATE_READY) player.currentPosition else startedAtPosition
         try {
