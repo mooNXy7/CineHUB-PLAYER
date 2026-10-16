@@ -15,6 +15,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -150,6 +151,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isRadioStream = false
     private var sourceReferers: Map<String, String> = emptyMap()
     private var sourceUserAgents: Map<String, String> = emptyMap()
+    private var radioExperience: RadioExperienceView? = null
     private var ep: Titulos.Ep? = null
     private var versao = "dub"
     private var opcoes: List<Titulos.Opcao> = emptyList()
@@ -196,7 +198,22 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(R.layout.activity_player)
         if (Vr.ativo) Vr.videoEmTextura(this, R.id.playerVideo)
         video = findViewById(R.id.playerVideo)
-        if (isRadioStream) video.useController = false
+        if (isRadioStream) {
+            video.useController = false
+            radioExperience = RadioExperienceView(
+                context = this,
+                stationName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { alvo.titulo },
+                genre = intent.getStringExtra("radio_genre")?.trim().orEmpty(),
+                onBack = { finish() },
+                onPlayPause = {
+                    player?.let { if (it.isPlaying) it.pause() else it.play() }
+                }
+            )
+            findViewById<FrameLayout>(R.id.playerRaiz).addView(
+                radioExperience,
+                FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            )
+        }
         carregando = findViewById(R.id.playerCarregando)
         status = findViewById(R.id.playerStatus)
         topo = findViewById(R.id.playerTopo)
@@ -598,6 +615,7 @@ class PlayerActivity : AppCompatActivity() {
         tentativaDesde = SystemClock.elapsedRealtime()
         mostrarCarregando(if (tentadas.isEmpty()) getString(R.string.player_abrindo)
                           else getString(R.string.player_outro_servidor))
+        radioExperience?.setPlaybackState(false, isBuffering = true)
         Telemetria.comecou("vod", nomeTelemetria(), opcao.url, fonte + 1, nova = tentadas.isEmpty())
         selecionarLegendaExt = legendaExt != null
         atual.setMediaSource(fonteAtual(opcao.url))
@@ -651,6 +669,7 @@ class PlayerActivity : AppCompatActivity() {
 
         override fun onPlaybackStateChanged(state: Int) {
             val p = player ?: return
+            radioExperience?.setPlaybackState(p.isPlaying, isBuffering = state == Player.STATE_BUFFERING)
             when (state) {
                 Player.STATE_READY -> {
                     handler.removeCallbacks(prazo)
@@ -688,12 +707,14 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            radioExperience?.setPlaybackState(isPlaying, isBuffering = player?.playbackState == Player.STATE_BUFFERING)
             video.keepScreenOn = isPlaying
             atualizarBotaoPausa()
             if (!isPlaying) guardar()
         }
 
         override fun onPlayerError(error: PlaybackException) {
+            radioExperience?.setPlaybackState(false, errorMessage = "Falha na fonte; tentando outra…")
             val p = player ?: return
             handler.removeCallbacks(prazo)
             // Legenda com defeito não é fonte morta: sai a legenda, o filme
