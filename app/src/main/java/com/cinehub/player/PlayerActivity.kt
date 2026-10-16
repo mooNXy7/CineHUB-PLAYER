@@ -200,7 +200,7 @@ class PlayerActivity : AppCompatActivity() {
         video = findViewById(R.id.playerVideo)
         if (isRadioStream) {
             video.useController = false
-            radioExperience = RadioExperienceView(
+            val radio = RadioExperienceView(
                 context = this,
                 stationName = intent.getStringExtra("radio_name")?.trim().orEmpty().ifBlank { alvo.titulo },
                 genre = intent.getStringExtra("radio_genre")?.trim().orEmpty(),
@@ -209,8 +209,9 @@ class PlayerActivity : AppCompatActivity() {
                     player?.let { if (it.isPlaying) it.pause() else it.play() }
                 }
             )
+            radioExperience = radio
             findViewById<FrameLayout>(R.id.playerRaiz).addView(
-                radioExperience,
+                radio,
                 FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
             )
         }
