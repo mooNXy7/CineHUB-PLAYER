@@ -28,22 +28,23 @@ data class Alvo(
         private const val TMDB = "alvo.tmdb"
 
         fun de(intent: Intent?): Alvo? {
-            val titulo = intent?.getStringExtra(TITULO)
-                ?: intent?.getStringExtra("title")
-                ?: intent?.getStringExtra("content_title")
-                ?: intent?.getStringExtra("radio_name")
-                ?: intent?.getStringExtra("channel_name")
-                ?: intent?.getStringExtra("content_id")
-                ?: intent?.getStringExtra("url")?.substringAfterLast('/')?.substringBefore('?')
+            val i = intent ?: return null
+            val titulo = i.getStringExtra(TITULO)
+                ?: i.getStringExtra("title")
+                ?: i.getStringExtra("content_title")
+                ?: i.getStringExtra("radio_name")
+                ?: i.getStringExtra("channel_name")
+                ?: i.getStringExtra("content_id")
+                ?: i.getStringExtra("url")?.substringAfterLast('/')?.substringBefore('?')
                 ?: intent?.dataString?.substringAfterLast('/')?.substringBefore('?')
                 ?: return null
             return Alvo(
                 titulo = titulo,
-                serie = intent.getBooleanExtra(SERIE, intent.getStringExtra("content_type").orEmpty().lowercase() in setOf("series", "serie", "tv", "anime", "dorama")),
+                serie = i.getBooleanExtra(SERIE, intent.getStringExtra("content_type").orEmpty().lowercase() in setOf("series", "serie", "tv", "anime", "dorama")),
                 letra = intent.getStringExtra(LETRA).orEmpty(),
                 ano = intent.getStringExtra(ANO).orEmpty(),
                 colecao = intent.getStringExtra(COLECAO).orEmpty(),
-                tmdbId = intent.getIntExtra(TMDB, intent.getIntExtra("tmdb_id", 0)),
+                tmdbId = i.getIntExtra(TMDB, i.getIntExtra("tmdb_id", 0)),
             )
         }
     }
