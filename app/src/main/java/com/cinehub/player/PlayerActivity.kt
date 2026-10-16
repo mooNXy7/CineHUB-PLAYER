@@ -339,9 +339,14 @@ class PlayerActivity : AppCompatActivity() {
             .filter(PlaybackUrlPolicy::isSafeHttpUrl)
             .distinct()
             .take(30)
-        val queue = parseCineHubEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
-        sourceReferers = runCatching { intent.getStringArrayListExtra("source_referers")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { url -> value.trim().takeIf { it.isNotBlank() }?.let { url to it } } }.toMap()
-        sourceUserAgents = runCatching { intent.getStringArrayListExtra("source_user_agents")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { it to value } }.toMap()
+        val queueRaw = intent.getStringExtra("episode_queue").orEmpty()
+        val queue = parseCineHubEpisodeQueue(queueRaw)
+        val topReferers = runCatching { intent.getStringArrayListExtra("source_referers")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { url -> value.trim().takeIf { it.isNotBlank() }?.let { url to it } } }.toMap()
+        val topUserAgents = runCatching { intent.getStringArrayListExtra("source_user_agents")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { url -> value.trim().takeIf { it.isNotBlank() }?.let { url to it } } }.toMap()
+        sourceReferers = parseEpisodeQueueHeaders(queueRaw, "source_referers") + topReferers
+        sourceUserAgents = parseEpisodeQueueHeaders(queueRaw, "source_user_agents") + topUserAgents
+        val queueCurrentIndex = intent.getIntExtra("episode_queue_current_index", -1)
+        val indexedEpisode = queue.getOrNull(queueCurrentIndex)
         val tmdb = intent.getIntExtra("tmdb_id", alvo.tmdbId).coerceAtLeast(0)
         val isSeries = !isLiveStream && !isRadioStream && (alvo.serie || queue.isNotEmpty())
         val r = if (directUrls.isNotEmpty()) {
