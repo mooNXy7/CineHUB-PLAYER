@@ -34,3 +34,5 @@ jobs:
           name: cinehub-player-saimo-port-debug
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+# Saimo player activity and resources were ported into the isolated CineHUB branch; validate on every update.
