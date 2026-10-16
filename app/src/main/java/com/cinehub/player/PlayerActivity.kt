@@ -346,8 +346,8 @@ class PlayerActivity : AppCompatActivity() {
         val isSeries = !isLiveStream && !isRadioStream && (alvo.serie || queue.isNotEmpty())
         val r = if (directUrls.isNotEmpty()) {
             if (isSeries) {
-                val currentSeason = intent.getIntExtra("season_number", intent.getIntExtra("season", 0)).coerceAtLeast(0)
-                val currentEpisode = intent.getIntExtra("episode_number", intent.getIntExtra("episode", 0)).coerceAtLeast(0)
+                val currentSeason = intent.getIntExtra("season_number", intent.getIntExtra("season", indexedEpisode?.temporada ?: 0)).coerceAtLeast(0)
+                val currentEpisode = intent.getIntExtra("episode_number", intent.getIntExtra("episode", indexedEpisode?.numero ?: 0)).coerceAtLeast(0)
                 val all = queue.map { item -> if (item.temporada == currentSeason && item.numero == currentEpisode) item.copy(fontes = mapOf("dub" to directUrls)) else item }.toMutableList()
                 if (currentSeason > 0 && currentEpisode > 0 && all.none { it.temporada == currentSeason && it.numero == currentEpisode }) {
                     all.add(Titulos.Ep(currentSeason, currentEpisode, mapOf("dub" to directUrls)))
@@ -371,13 +371,32 @@ class PlayerActivity : AppCompatActivity() {
         }
         resolvido = r
         mostrarLogo(r)
-        val t = intent.getIntExtra(TEMPORADA, intent.getIntExtra("season_number", intent.getIntExtra("season", 0)))
-        val e = intent.getIntExtra(EPISODIO, intent.getIntExtra("episode_number", intent.getIntExtra("episode", 0)))
+        val t = intent.getIntExtra(TEMPORADA, intent.getIntExtra("season_number", intent.getIntExtra("season", indexedEpisode?.temporada ?: 0)))
+        val e = intent.getIntExtra(EPISODIO, intent.getIntExtra("episode_number", intent.getIntExtra("episode", indexedEpisode?.numero ?: 0)))
         ep = if (r.serie) {
             (if (t > 0) r.episodio(t, e) else null) ?: Titulos.ondeContinuar(this, r)
         } else null
         val castStart = intent.getLongExtra(EXTRA_START_TIME, intent.getLongExtra("start_position_ms", 0L) / 1000L)
         comecar(pedirRetomada = castStart <= 0 && !intent.getBooleanExtra(DO_INICIO, false), startTime = castStart)
+    }
+
+    private fun parseEpisodeQueueHeaders(raw: String, field: String): Map<String, String> {
+        if (raw.isBlank()) return emptyMap()
+        return runCatching {
+            val array = JSONArray(raw)
+            buildMap {
+                for (i in 0 until minOf(array.length(), 500)) {
+                    val item = array.optJSONObject(i) ?: continue
+                    val sources = item.optJSONArray("sources") ?: continue
+                    val headers = item.optJSONArray(field) ?: continue
+                    for (j in 0 until minOf(sources.length(), headers.length(), 30)) {
+                        val url = sources.optString(j).trim()
+                        val value = headers.optString(j).trim()
+                        if (PlaybackUrlPolicy.isSafeHttpUrl(url) && value.isNotBlank()) put(url, value)
+                    }
+                }
+            }
+        }.getOrDefault(emptyMap())
     }
 
     private fun parseCineHubEpisodeQueue(raw: String): List<Titulos.Ep> {
