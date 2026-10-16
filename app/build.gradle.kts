@@ -40,7 +40,11 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:$media3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.appcompat:appcompat:1.8.0")
+    implementation("androidx.recyclerview:recyclerview:1.4.0")
+    implementation("io.coil-kt.coil3:coil:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
     testImplementation("junit:junit:4.13.2")
 }
