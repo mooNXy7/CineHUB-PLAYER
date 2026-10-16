@@ -1357,6 +1357,8 @@ class PlayerActivity : AppCompatActivity() {
             // Id próprio: a tela de canais tem a dela, e duas sessões com o
             // mesmo id derrubam o app.
             MediaSession.Builder(this, object : ForwardingPlayer(p) {
+                override fun play() { if (!isLiveStream) super.play() }
+                override fun pause() { if (!isLiveStream) super.pause() }
                 override fun seekToNext() = irParaProximo(false)
                 override fun seekToNextMediaItem() = irParaProximo(false)
                 override fun hasNextMediaItem() = ep?.let { resolvido?.seguinte(it) } != null
