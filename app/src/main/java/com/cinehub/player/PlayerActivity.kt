@@ -340,7 +340,7 @@ class PlayerActivity : AppCompatActivity() {
             .distinct()
             .take(30)
         val queue = parseCineHubEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
-        sourceReferers = runCatching { intent.getStringArrayListExtra("source_referers")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { it to value } }.toMap()
+        sourceReferers = runCatching { intent.getStringArrayListExtra("source_referers")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { url -> value.trim().takeIf { it.isNotBlank() }?.let { url to it } } }.toMap()
         sourceUserAgents = runCatching { intent.getStringArrayListExtra("source_user_agents")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { it to value } }.toMap()
         val tmdb = intent.getIntExtra("tmdb_id", alvo.tmdbId).coerceAtLeast(0)
         val isSeries = !isLiveStream && !isRadioStream && (alvo.serie || queue.isNotEmpty())
@@ -690,6 +690,10 @@ class PlayerActivity : AppCompatActivity() {
                     mostrarCarregando(getString(R.string.player_carregando))
                 }
                 Player.STATE_ENDED -> {
+                    if (isLiveStream || isRadioStream) {
+                        proximaFonte(0L)
+                        return
+                    }
                     // "Acabou" antes de meio minuto não é fim de filme: é
                     // servidor que devolveu arquivo vazio ou cortado. Vai
                     // para o próximo em vez de fechar o player.
