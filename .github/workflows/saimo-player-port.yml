@@ -1,4 +1,5 @@
 name: CineHUB Player Port CI
+# CI is intentionally attached to the isolated rewrite branch until the port is validated.
 
 on:
   push:
