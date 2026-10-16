@@ -7,6 +7,10 @@ android {
     namespace = "com.cinehub.player"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         applicationId = "com.cinehub.player"
         minSdk = 23
