@@ -393,12 +393,6 @@ class PlayerActivity : Activity() {
         loadIntroMarkers()
     }
 
-    override fun onStart() {
-        super.onStart()
-        scheduleIntroCheck()
-        scheduleStillWatchingPrompt()
-    }
-
     override fun onUserInteraction() {
         super.onUserInteraction()
         scheduleStillWatchingPrompt()
@@ -1518,6 +1512,8 @@ class PlayerActivity : Activity() {
         backgrounding = false
         if (resumeAfterStop && !isFinishing) player?.play()
         resumeAfterStop = false
+        scheduleIntroCheck()
+        scheduleStillWatchingPrompt()
     }
 
     override fun onTrimMemory(level: Int) {
