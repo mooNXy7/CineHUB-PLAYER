@@ -10,12 +10,12 @@ import androidx.media3.common.util.UnstableApi
  *
  * São eles que a tela inicial do Google TV (Continuar assistindo, destaques)
  * e a busca do sistema abrem: `saimo://assistir` toca, `saimo://titulo` abre a
- * ficha, `saimo://canal` sintoniza um canal ao vivo.
+ * ficha, `cinehub://canal` sintoniza um canal ao vivo.
  */
 @UnstableApi
 object Links {
 
-    private fun base(acao: String, alvo: Alvo) = Uri.Builder().scheme("saimo").authority(acao)
+    private fun base(acao: String, alvo: Alvo) = Uri.Builder().scheme("cinehub").authority(acao)
         .appendQueryParameter("t", alvo.titulo)
         .appendQueryParameter("s", if (alvo.serie) "1" else "0")
         .appendQueryParameter("l", alvo.letra)
@@ -31,7 +31,7 @@ object Links {
     fun ficha(alvo: Alvo): Uri = base("titulo", alvo).build()
 
     fun canal(nome: String): Uri =
-        Uri.Builder().scheme("saimo").authority("canal").appendQueryParameter("n", nome).build()
+        Uri.Builder().scheme("cinehub").authority("canal").appendQueryParameter("n", nome).build()
 
     private fun alvo(uri: Uri): Alvo? {
         val titulo = uri.getQueryParameter("t")?.takeIf { it.isNotBlank() } ?: return null
@@ -45,7 +45,7 @@ object Links {
      * incompleto — aí quem chamou segue o caminho normal da abertura.
      */
     fun abrir(context: Context, uri: Uri?): Boolean {
-        if (uri?.scheme != "saimo" || uri.host != "assistir") return false
+        if (uri?.scheme != "cinehub" || uri.host != "assistir") return false
         val alvo = alvo(uri) ?: return false
         PlayerActivity.abrir(
             context,
