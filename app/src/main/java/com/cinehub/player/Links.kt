@@ -45,19 +45,14 @@ object Links {
      * incompleto — aí quem chamou segue o caminho normal da abertura.
      */
     fun abrir(context: Context, uri: Uri?): Boolean {
-        if (uri?.scheme != "saimo") return false
-        when (uri.host) {
-            "assistir" -> {
-                val alvo = alvo(uri) ?: return false
-                PlayerActivity.abrir(context, alvo,
-                    uri.getQueryParameter("T")?.toIntOrNull() ?: 0,
-                    uri.getQueryParameter("E")?.toIntOrNull() ?: 0)
-            }
-            "titulo" -> FichaActivity.abrir(context, alvo(uri) ?: return false)
-            "canal" -> context.startActivity(Intent(context, MainActivity::class.java)
-                .putExtra(MainActivity.EXTRA_CANAL, uri.getQueryParameter("n") ?: return false))
-            else -> return false
-        }
+        if (uri?.scheme != "saimo" || uri.host != "assistir") return false
+        val alvo = alvo(uri) ?: return false
+        PlayerActivity.abrir(
+            context,
+            alvo,
+            uri.getQueryParameter("T")?.toIntOrNull() ?: 0,
+            uri.getQueryParameter("E")?.toIntOrNull() ?: 0
+        )
         return true
     }
 }
