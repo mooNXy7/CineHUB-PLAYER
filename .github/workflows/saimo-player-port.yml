@@ -7,7 +7,7 @@ on:
       - "rewrite/**"
   pull_request:
     branches:
-      - main
+      - "ci/saimo-port-base"
 
 permissions:
   contents: read
