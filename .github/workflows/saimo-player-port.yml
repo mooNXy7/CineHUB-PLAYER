@@ -25,9 +25,9 @@ jobs:
         with:
           gradle-version: "8.13"
       - name: Unit tests
-        run: gradle testDebugUnitTest
+        run: gradle --no-daemon :player-core:test :app:testDebugUnitTest
       - name: Build debug APK
-        run: gradle assembleDebug
+        run: gradle --no-daemon assembleDebug
       - name: Upload test APK
         uses: actions/upload-artifact@v4
         with:
