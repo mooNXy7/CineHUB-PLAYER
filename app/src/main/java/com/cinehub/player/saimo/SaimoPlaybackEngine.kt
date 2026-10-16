@@ -149,7 +149,7 @@ class SaimoPlaybackEngine(
             }.also { handler.postDelayed(it, SOURCE_TIMEOUT_MS) }
             emit()
         } catch (failure: Throwable) {
-            lastError = PlaybackException("Source initialization failed: ${failure.message}", failure, C.ERROR_CODE_IO_UNSPECIFIED)
+            lastError = PlaybackException("Source initialization failed: ${failure.message}", failure, PlaybackException.ERROR_CODE_IO_UNSPECIFIED)
             advance(lastError)
         }
     }
