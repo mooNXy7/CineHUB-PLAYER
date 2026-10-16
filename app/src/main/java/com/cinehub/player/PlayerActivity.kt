@@ -181,7 +181,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Preferencias.iniciar(applicationContext)
-        Vr.iniciar(applicationContext)
+        Vr.iniciar(application)
         Aparelho.conhecer(applicationContext)
         alvo = Alvo.de(intent) ?: run { finish(); return }
         setContentView(R.layout.activity_player)
