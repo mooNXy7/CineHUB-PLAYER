@@ -67,4 +67,9 @@
     <string name="player_qualidade_unica">Este vídeo tem uma qualidade só</string>
     <string name="player_idioma_padrao">Original</string>
     <string name="vr_mostrar_controles">Mostrar controles</string>
+    <string name="vr_painel_dica">Toque para escolher · toque fora para fechar</string>
+    <string name="faixa_qualidade">Qualidade da imagem</string>
+    <string name="faixa_audio">Idioma do áudio</string>
+    <string name="faixa_legendas">Legendas</string>
+    <string name="faixas_titulo">Qualidade, áudio e legendas</string>
 </resources>
