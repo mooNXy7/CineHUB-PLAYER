@@ -36,3 +36,5 @@ jobs:
           if-no-files-found: error
 
 # Saimo player activity and resources were ported into the isolated CineHUB branch; validate on every update.
+
+# Re-run after resolving compile-time API mismatches in the imported playback stack.
