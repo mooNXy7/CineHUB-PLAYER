@@ -338,10 +338,10 @@ class PlayerActivity : AppCompatActivity() {
                 val current = all.firstOrNull { it.temporada == currentSeason && it.numero == currentEpisode }
                     ?: Titulos.Ep(currentSeason.coerceAtLeast(1), currentEpisode.coerceAtLeast(1), mapOf("dub" to directUrls))
                 val eps = (all + current).distinctBy { it.temporada to it.numero }.sortedWith(compareBy({ it.temporada }, { it.numero }))
-                Titulos.Resolvido(alvo.copy(serie = true, tmdbId = tmdb), alvo.titulo, null, eps, tmdb, reservado = true)
+                Titulos.Resolvido(alvo.copy(serie = true, tmdbId = tmdb), alvo.titulo, null, eps, tmdb, reservado = isLiveStream || isRadioStream)
             } else {
                 val filme = Filme(alvo.titulo, mapOf("dub" to directUrls))
-                Titulos.Resolvido(alvo.copy(tmdbId = tmdb), alvo.titulo, filme, emptyList(), tmdb, reservado = true)
+                Titulos.Resolvido(alvo.copy(tmdbId = tmdb), alvo.titulo, filme, emptyList(), tmdb, reservado = isLiveStream || isRadioStream)
             }
         } else {
             Titulos.resolver(this, alvo)
@@ -931,7 +931,7 @@ class PlayerActivity : AppCompatActivity() {
                     isFocusable = true
                     setPadding(dp(4), dp(4), dp(4), dp(8))
                     layoutParams = LinearLayout.LayoutParams(dp(198), dp(270)).apply { marginEnd = dp(12) }
-                    setOnClickListener { Toast.makeText(this@PlayerActivity, "Abra este título pelo catálogo CineHUB para reproduzi-lo.", Toast.LENGTH_SHORT).show() }
+                    setOnClickListener { PlayerActivity.abrir(this@PlayerActivity, alvoSugerido) }
                     addView(capa)
                     addView(TextView(this@PlayerActivity).apply {
                         text = Generos.semAno(achado.titulo)
@@ -983,7 +983,7 @@ class PlayerActivity : AppCompatActivity() {
         val p = player ?: return
         val r = resolvido ?: return
         if (!tocou) return
-        if (r.reservado) return
+        if (r.reservado || isLiveStream || isRadioStream) return
         Progresso.salvar(this, r.chave(ep), p.currentPosition, p.duration)
         ProximaNaTv.atualizar(this, r, ep, p.currentPosition, p.duration)
     }
