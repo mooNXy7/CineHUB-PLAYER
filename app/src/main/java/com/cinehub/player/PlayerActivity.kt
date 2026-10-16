@@ -668,7 +668,7 @@ class PlayerActivity : AppCompatActivity() {
             b.text = getString(R.string.player_fonte_n, fonte + 1)
             Icones.inicio(b, R.drawable.ic_swap)
         }
-        tocarFonte(posicao, pausado = aviso.visibility == View.VISIBLE)
+        tocarFonte(if (isLiveStream || isRadioStream) 0L else posicao, pausado = aviso.visibility == View.VISIBLE)
     }
 
     private fun desistir() {
