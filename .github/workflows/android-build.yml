@@ -2,7 +2,7 @@ name: Android build
 
 on:
   push:
-    branches: ["main", "master"]
+    branches: ["main", "master", "work/**"]
   pull_request:
   workflow_dispatch:
 

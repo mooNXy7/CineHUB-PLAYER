@@ -25,11 +25,14 @@ class RadioExperienceView(
     stationName: String,
     genre: String,
     onBack: () -> Unit,
-    onPlayPause: () -> Unit
+    onPlayPause: () -> Unit,
+    onChangeStation: () -> Unit
 ) : FrameLayout(context) {
     private val density = resources.displayMetrics.density
     private val soundArt = RadioSoundArt(context)
     private val statusText = TextView(context)
+    private val stationNameText = TextView(context)
+    private val genreText = TextView(context)
     private val playPauseButton = Button(context)
 
     init {
@@ -104,7 +107,7 @@ class RadioExperienceView(
         })
         info.addView(onAir, LinearLayout.LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT))
 
-        info.addView(TextView(context).apply {
+        info.addView(stationNameText.apply {
             text = stationName.ifBlank { "Rádio CineHUB" }
             setTextColor(white)
             textSize = 34f
@@ -116,7 +119,7 @@ class RadioExperienceView(
             topMargin = dp(18)
         })
 
-        info.addView(TextView(context).apply {
+        info.addView(genreText.apply {
             text = genre.ifBlank { "Sua trilha sonora, ao vivo" }
             setTextColor(red)
             textSize = 19f
@@ -163,14 +166,19 @@ class RadioExperienceView(
                     ?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
             }
         }
-        actions.addView(volumeDown, LinearLayout.LayoutParams(dp(150), dp(54)).apply { marginEnd = dp(14) })
+        actions.addView(volumeDown, LinearLayout.LayoutParams(dp(130), dp(54)).apply { marginEnd = dp(10) })
+        actions.addView(Button(context).apply {
+            text = "Trocar estação"
+            contentDescription = "Escolher outra estação de rádio"
+            setOnClickListener { onChangeStation() }
+        }, LinearLayout.LayoutParams(dp(150), dp(54)).apply { marginEnd = dp(10) })
 
         playPauseButton.apply {
             text = "▶  Reproduzir"
             contentDescription = "Reproduzir rádio"
             setOnClickListener { onPlayPause() }
         }
-        actions.addView(playPauseButton, LinearLayout.LayoutParams(dp(210), dp(58)).apply { marginEnd = dp(14) })
+        actions.addView(playPauseButton, LinearLayout.LayoutParams(dp(190), dp(58)).apply { marginEnd = dp(10) })
 
         val volumeUp = Button(context).apply {
             text = "+  Volume"
@@ -180,7 +188,7 @@ class RadioExperienceView(
                     ?.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
             }
         }
-        actions.addView(volumeUp, LinearLayout.LayoutParams(dp(150), dp(54)))
+        actions.addView(volumeUp, LinearLayout.LayoutParams(dp(130), dp(54)))
         addView(actions, LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             bottomMargin = dp(30)
@@ -196,6 +204,13 @@ class RadioExperienceView(
             gravity = Gravity.BOTTOM or Gravity.END
             setMargins(0, 0, dp(38), dp(16))
         })
+    }
+
+    fun setStation(name: String, genre: String) {
+        stationNameText.text = name.ifBlank { "Rádio CineHUB" }
+        stationNameText.contentDescription = "Estação: ${stationNameText.text}"
+        genreText.text = genre.ifBlank { "Sua trilha sonora, ao vivo" }
+        statusText.text = "Trocando estação…"
     }
 
     fun setPlaybackState(isPlaying: Boolean, isBuffering: Boolean = false, errorMessage: String? = null) {
@@ -267,6 +282,8 @@ private class RadioSoundArt(context: Context) : View(context) {
             paint.color = if (i % 4 == 0) 0xFFFF5A62.toInt() else 0xFFE50914.toInt()
             canvas.drawRoundRect(x, baseY - barHeight, x + barWidth, baseY, barWidth / 2, barWidth / 2, paint)
         }
-        if (isShown) postInvalidateDelayed(50L)
+        // Keep the decorative equalizer at 20 FPS only while audio is active.
+        // A paused station must not burn CPU on low-memory TV boxes.
+        if (isShown && active) postInvalidateDelayed(50L)
     }
 }

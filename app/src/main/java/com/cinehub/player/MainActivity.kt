@@ -23,9 +23,11 @@ class MainActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var streamInput: EditText
     private lateinit var memoryProfileButton: Button
+    private lateinit var sourceTimeoutButton: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CatalogClient.initialize(applicationContext)
         window.statusBarColor = Color.BLACK
         window.navigationBarColor = Color.BLACK
         val root = ScrollView(this).apply {
@@ -86,6 +88,11 @@ class MainActivity : Activity() {
         }
         content.addView(categoriesScroll)
         content.addView(Button(this).apply {
+            text = "CARREGAR CANAIS AO VIVO"
+            contentDescription = "Carregar canais com fontes diretas disponíveis"
+            setOnClickListener { showChannelPicker() }
+        })
+        content.addView(Button(this).apply {
             text = "CARREGAR RÁDIOS DO CINEHUB-ACERVO"
             setOnClickListener { showRadioPicker() }
         })
@@ -104,6 +111,23 @@ class MainActivity : Activity() {
         }
         content.addView(memoryProfileButton)
         updateMemoryProfileLabel()
+        sourceTimeoutButton = Button(this).apply {
+            setOnClickListener {
+                val prefs = getSharedPreferences("player-settings", MODE_PRIVATE)
+                val current = prefs.getInt("source_timeout_seconds", 15).coerceIn(10, 45)
+                val next = when (current) {
+                    10 -> 15
+                    15 -> 20
+                    20 -> 30
+                    30 -> 45
+                    else -> 10
+                }
+                prefs.edit().putInt("source_timeout_seconds", next).apply()
+                updateSourceTimeoutLabel()
+            }
+        }
+        content.addView(sourceTimeoutButton)
+        updateSourceTimeoutLabel()
         streamInput = EditText(this).apply {
             hint = "URL HTTP(S) de stream autorizado (HLS, DASH ou MP4)"
             setSingleLine(true)
@@ -128,6 +152,30 @@ class MainActivity : Activity() {
         setContentView(root)
         TvUi.style(root)
         loadCatalogStatus()
+        intent.getStringExtra("open_detail_json")?.let { raw ->
+            runCatching {
+                val json = JSONObject(raw)
+                val genreArray = json.optJSONArray("genres") ?: JSONArray()
+                val genres = (0 until genreArray.length()).mapNotNull { genreArray.optString(it).takeIf(String::isNotBlank) }
+                CatalogClient.CatalogEntry(
+                    id = json.optString("id"),
+                    title = json.optString("title"),
+                    type = json.optString("type"),
+                    detailPath = json.optString("detail_path"),
+                    posterPath = json.optString("poster_url"),
+                    year = json.optString("year"),
+                    genres = genres,
+                    subtype = json.optString("subtype")
+                )
+            }.getOrNull()?.let(::showContentDetails)
+        }
+    }
+
+    private fun updateSourceTimeoutLabel() {
+        val seconds = getSharedPreferences("player-settings", MODE_PRIVATE)
+            .getInt("source_timeout_seconds", 15).coerceIn(10, 45)
+        sourceTimeoutButton.text = "Troca automática de fonte: ${seconds}s (pressione para alterar)"
+        sourceTimeoutButton.contentDescription = "Tempo de espera antes de trocar uma fonte: ${seconds} segundos"
     }
 
     private fun updateMemoryProfileLabel() {
@@ -152,6 +200,47 @@ class MainActivity : Activity() {
             putExtra("live", live)
             putExtra("content_id", url.hashCode().toString())
         })
+    }
+
+    private fun showChannelPicker() {
+        status.text = "Carregando canais com fontes diretas disponíveis…"
+        CatalogClient.loadChannelPreview(80) { result ->
+            runOnUiThread {
+                result.fold(
+                    onSuccess = { channels ->
+                        if (channels.isEmpty()) {
+                            status.text = "O catálogo de canais respondeu, mas ainda não publicou fontes diretas reproduzíveis. As fontes pendentes não serão tratadas como streams."
+                            status.setTextColor(Color.rgb(255, 190, 150))
+                            return@fold
+                        }
+                        val labels = channels.map { channel ->
+                            channel.name + (channel.category.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") +
+                                " · ${channel.sources.size} fonte(s)"
+                        }.toTypedArray()
+                        status.text = "Canais disponíveis: ${channels.size}. Escolha um canal para iniciar."
+                        status.setTextColor(Color.rgb(180, 235, 180))
+                        android.app.AlertDialog.Builder(this)
+                            .setTitle("Canais ao vivo · CineHUB")
+                            .setItems(labels) { _, index ->
+                                val channel = channels.getOrNull(index) ?: return@setItems
+                                startActivity(Intent(this, PlayerActivity::class.java).apply {
+                                    putStringArrayListExtra("sources", ArrayList(channel.sources))
+                                    putExtra("live", true)
+                                    putExtra("content_type", "live")
+                                    putExtra("content_id", channel.id)
+                                    putExtra("channel_name", channel.name)
+                                })
+                            }
+                            .setNegativeButton("Fechar", null)
+                            .show()
+                    },
+                    onFailure = { error ->
+                        status.text = "Não foi possível carregar os canais: " + (error.message ?: "erro desconhecido")
+                        status.setTextColor(Color.rgb(255, 190, 150))
+                    }
+                )
+            }
+        }
     }
 
     private fun showRadioPicker() {
@@ -222,6 +311,13 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            CatalogClient.clearMemoryCache()
+        }
+    }
+
     private fun showContentDetails(entry: CatalogClient.CatalogEntry) {
         status.text = "Consultando fontes e episódios de ${entry.title}…"
         CatalogClient.loadContentDetails(entry) { result ->
@@ -231,12 +327,17 @@ class MainActivity : Activity() {
                         if (details.episodes.isNotEmpty()) {
                             showSeasonPicker(details)
                         } else {
+                            val directSources = details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                                .sortedBy { it.priority }.distinctBy { it.url }
                             choosePlaybackSources(
                                 details.title,
-                                details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
-                                    .sortedBy { it.priority }.map { it.url },
+                                directSources.map { it.url },
                                 details.id,
-                                tmdbId = details.tmdbId
+                                tmdbId = details.tmdbId,
+                                catalogCategory = categoryFor(entry.type, entry.subtype),
+                                catalogGenres = entry.genres.ifEmpty { details.genres },
+                                catalogItemId = entry.id,
+                                sourceReferers = directSources.map { it.referer }
                             )
                         }
                     },
@@ -306,8 +407,10 @@ class MainActivity : Activity() {
             .setTitle("T$season · E$episodeNumber · Áudio")
             .setItems(labels.toTypedArray()) { _, index ->
                 val variant = variants[index]
-                val direct = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
-                    .sortedBy { it.priority }.map { it.url }.distinct()
+                val directSources = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                    .sortedBy { it.priority }.distinctBy { it.url }
+                val direct = directSources.map { it.url }
+                val directReferers = directSources.map { it.referer }
                 val id = details.id + "-" + season + "-" + episodeNumber + "-" + variant.audio
                 if (direct.isEmpty()) {
                     val references = variant.providerRefs.size
@@ -332,12 +435,23 @@ class MainActivity : Activity() {
                         details.tmdbId,
                         season,
                         episodeNumber,
-                        queue.currentIndex
+                        queue.currentIndex,
+                        catalogCategory = categoryFor(details.type, details.subtype),
+                        catalogGenres = details.genres,
+                        catalogItemId = details.id,
+                        sourceReferers = directReferers
                     )
                 }
             }
             .setNegativeButton("Voltar", null)
             .show()
+    }
+
+    private fun categoryFor(type: String, subtype: String = ""): String = when {
+        subtype.equals("anime", ignoreCase = true) || type.equals("anime", ignoreCase = true) -> "anime"
+        subtype.equals("dorama", ignoreCase = true) || type.equals("dorama", ignoreCase = true) -> "doramas"
+        type.equals("movie", ignoreCase = true) -> "movies"
+        else -> "series"
     }
 
     private fun audioLabel(audio: String): String = when (audio.lowercase()) {
@@ -356,7 +470,11 @@ class MainActivity : Activity() {
         tmdbId: Int = 0,
         season: Int = 0,
         episode: Int = 0,
-        queueCurrentIndex: Int = -1
+        queueCurrentIndex: Int = -1,
+        catalogCategory: String? = null,
+        catalogGenres: List<String> = emptyList(),
+        catalogItemId: String? = null,
+        sourceReferers: List<String> = emptyList()
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -369,6 +487,11 @@ class MainActivity : Activity() {
         }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
             putStringArrayListExtra("sources", ArrayList(uniqueUrls))
+            if (sourceReferers.isNotEmpty()) {
+                putStringArrayListExtra("source_referers", ArrayList(uniqueUrls.map { url ->
+                    sourceReferers.getOrNull(urls.indexOf(url)).orEmpty()
+                }))
+            }
             putExtra("content_id", contentId)
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
@@ -377,6 +500,9 @@ class MainActivity : Activity() {
             if (tmdbId > 0) putExtra("tmdb_id", tmdbId)
             if (season > 0) putExtra("season_number", season)
             if (episode > 0) putExtra("episode_number", episode)
+            catalogCategory?.let { putExtra("catalog_category", it) }
+            catalogItemId?.let { putExtra("catalog_item_id", it) }
+            if (catalogGenres.isNotEmpty()) putStringArrayListExtra("catalog_genres", ArrayList(catalogGenres))
         })
     }
 
@@ -403,7 +529,8 @@ class MainActivity : Activity() {
             val season: Int,
             val episode: Int,
             val audio: String,
-            val urls: List<String>
+            val urls: List<String>,
+            val referers: List<String>
         )
 
         val candidates = allEpisodes.mapNotNull { episodeKey ->
@@ -411,14 +538,15 @@ class MainActivity : Activity() {
             val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
                 ?.takeIf { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
                 ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
-            val urls = selected?.sources.orEmpty()
+            val directSources = selected?.sources.orEmpty()
                 .filter(CatalogClient::isDirectPlaybackSource)
                 .sortedBy { it.priority }
-                .map { it.url }
-                .distinct()
+                .distinctBy { it.url }
                 .take(3)
+            val urls = directSources.map { it.url }
+            val referers = directSources.map { it.referer }
             if (selected == null || urls.isEmpty()) null
-            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls)
+            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls, referers)
         }
 
         val currentCandidateIndex = candidates.indexOfFirst {
@@ -436,9 +564,11 @@ class MainActivity : Activity() {
                 put("title", details.title + " · T" + candidate.season + " E" + candidate.episode)
                 put("content_id", details.id + "-" + candidate.season + "-" + candidate.episode + "-" + candidate.audio)
                 put("sources", JSONArray(candidate.urls))
+                put("source_referers", JSONArray(candidate.referers))
                 put("tmdb_id", details.tmdbId)
                 put("season", candidate.season)
                 put("episode", candidate.episode)
+                put("poster_url", details.posterUrl)
             })
         }
         val currentIndex = currentCandidateIndex - start

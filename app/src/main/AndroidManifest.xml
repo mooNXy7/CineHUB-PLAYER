@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <permission
+        android:name="com.cinehub.player.permission.PLAYBACK"
+        android:protectionLevel="signature" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -10,7 +13,8 @@
         <activity
             android:name=".PlayerActivity"
             android:configChanges="keyboard|keyboardHidden|orientation|screenSize"
-            android:exported="false"
+            android:exported="true"
+            android:permission="com.cinehub.player.permission.PLAYBACK"
             android:screenOrientation="landscape" />
         <activity
             android:name=".MainActivity"

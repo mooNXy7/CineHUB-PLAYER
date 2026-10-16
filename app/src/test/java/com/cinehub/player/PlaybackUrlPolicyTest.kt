@@ -21,6 +21,11 @@ class PlaybackUrlPolicyTest {
     }
 
     @Test
+    fun acceptsLegacyCdnHostLabelsHandledBySaimoTransport() {
+        assertTrue(PlaybackUrlPolicy.isSafeHttpUrl("https://_cdn.example/video.m3u8"))
+    }
+
+    @Test
     fun rejectsEmbeddedCredentials() {
         assertFalse(PlaybackUrlPolicy.isSafeHttpUrl("https://user:password@media.example/video.m3u8"))
     }
