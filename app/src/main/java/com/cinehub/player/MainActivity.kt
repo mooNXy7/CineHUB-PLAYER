@@ -149,6 +149,8 @@ class MainActivity : Activity() {
         }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
             putExtra("url", url)
+            putExtra("title", url.substringAfter("://").substringBefore('/').ifBlank { "Stream direto" })
+            putExtra("content_type", if (live) "live" else "movie")
             putExtra("live", live)
             putExtra("content_id", url.hashCode().toString())
         })
@@ -236,7 +238,9 @@ class MainActivity : Activity() {
                                 details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
                                     .sortedBy { it.priority }.map { it.url },
                                 details.id,
-                                tmdbId = details.tmdbId
+                                tmdbId = details.tmdbId,
+                                sourceReferers = details.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                                    .sortedBy { it.priority }.map { it.referer }
                             )
                         }
                     },
@@ -332,7 +336,9 @@ class MainActivity : Activity() {
                         details.tmdbId,
                         season,
                         episodeNumber,
-                        queue.currentIndex
+                        queue.currentIndex,
+                        sourceReferers = variant.sources.filter { CatalogClient.isDirectPlaybackSource(it) }
+                            .sortedBy { it.priority }.map { it.referer }
                     )
                 }
             }
@@ -356,7 +362,8 @@ class MainActivity : Activity() {
         tmdbId: Int = 0,
         season: Int = 0,
         episode: Int = 0,
-        queueCurrentIndex: Int = -1
+        queueCurrentIndex: Int = -1,
+        sourceReferers: List<String> = emptyList()
     ) {
         val uniqueUrls = urls.distinct()
         if (uniqueUrls.isEmpty()) {
@@ -369,6 +376,13 @@ class MainActivity : Activity() {
         }
         startActivity(Intent(this, PlayerActivity::class.java).apply {
             putStringArrayListExtra("sources", ArrayList(uniqueUrls))
+            putExtra("title", title)
+            putExtra("content_type", if (episodeQueue != null) "series" else "movie")
+            if (sourceReferers.isNotEmpty()) {
+                putStringArrayListExtra("source_referers", ArrayList(uniqueUrls.map { url ->
+                    sourceReferers.getOrNull(urls.indexOf(url)).orEmpty()
+                }))
+            }
             putExtra("content_id", contentId)
             putExtra("live", false)
             episodeQueue?.let { putExtra("episode_queue", it) }
@@ -403,7 +417,8 @@ class MainActivity : Activity() {
             val season: Int,
             val episode: Int,
             val audio: String,
-            val urls: List<String>
+            val urls: List<String>,
+            val referers: List<String>
         )
 
         val candidates = allEpisodes.mapNotNull { episodeKey ->
@@ -411,14 +426,15 @@ class MainActivity : Activity() {
             val selected = variants.firstOrNull { it.audio.equals(preferredAudio, ignoreCase = true) }
                 ?.takeIf { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
                 ?: variants.firstOrNull { variant -> variant.sources.any(CatalogClient::isDirectPlaybackSource) }
-            val urls = selected?.sources.orEmpty()
+            val directSources = selected?.sources.orEmpty()
                 .filter(CatalogClient::isDirectPlaybackSource)
                 .sortedBy { it.priority }
-                .map { it.url }
-                .distinct()
+                .distinctBy { it.url }
                 .take(3)
+            val urls = directSources.map { it.url }
+            val referers = directSources.map { it.referer }
             if (selected == null || urls.isEmpty()) null
-            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls)
+            else QueueCandidate(episodeKey.season, episodeKey.episode, selected.audio, urls, referers)
         }
 
         val currentCandidateIndex = candidates.indexOfFirst {
@@ -436,6 +452,7 @@ class MainActivity : Activity() {
                 put("title", details.title + " · T" + candidate.season + " E" + candidate.episode)
                 put("content_id", details.id + "-" + candidate.season + "-" + candidate.episode + "-" + candidate.audio)
                 put("sources", JSONArray(candidate.urls))
+                put("source_referers", JSONArray(candidate.referers))
                 put("tmdb_id", details.tmdbId)
                 put("season", candidate.season)
                 put("episode", candidate.episode)
