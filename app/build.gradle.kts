@@ -46,7 +46,7 @@ dependencies {
     implementation("androidx.recyclerview:recyclerview:1.4.0")
     implementation("androidx.tvprovider:tvprovider:1.1.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.2")
-    implementation("io.coil-kt.coil3:coil:3.6.3")
-    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
+    implementation("io.coil-kt.coil3:coil:3.5.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
     testImplementation("junit:junit:4.13.2")
 }
