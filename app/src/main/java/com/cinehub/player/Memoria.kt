@@ -2,6 +2,8 @@ package com.cinehub.player
 
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
+import android.util.Log
+import kotlinx.coroutines.CoroutineExceptionHandler
 
 /**
  * Mapa que guarda só os [maximo] usados mais recentemente.
@@ -30,4 +32,9 @@ object Memoria {
         Pulos.liberar()
         Capas.liberar()
     }
+}
+
+/** Background jobs log failures instead of crashing the playback Activity. */
+val semDerrubar = CoroutineExceptionHandler { _, erro ->
+    Log.w("CineHUBPlayer", "background task failed", erro)
 }
