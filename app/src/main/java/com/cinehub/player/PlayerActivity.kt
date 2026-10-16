@@ -145,6 +145,10 @@ class PlayerActivity : AppCompatActivity() {
     private var sessao: MediaSession? = null
 
     private var resolvido: Titulos.Resolvido? = null
+    private var isLiveStream = false
+    private var isRadioStream = false
+    private var sourceReferers: Map<String, String> = emptyMap()
+    private var sourceUserAgents: Map<String, String> = emptyMap()
     private var ep: Titulos.Ep? = null
     private var versao = "dub"
     private var opcoes: List<Titulos.Opcao> = emptyList()
@@ -183,10 +187,14 @@ class PlayerActivity : AppCompatActivity() {
         Preferencias.iniciar(applicationContext)
         Vr.iniciar(application)
         Aparelho.conhecer(applicationContext)
+        val kind = intent.getStringExtra("content_type").orEmpty().lowercase()
+        isLiveStream = kind in setOf("live", "tv", "channel", "canal")
+        isRadioStream = kind == "radio"
         alvo = Alvo.de(intent) ?: run { finish(); return }
         setContentView(R.layout.activity_player)
         if (Vr.ativo) Vr.videoEmTextura(this, R.id.playerVideo)
         video = findViewById(R.id.playerVideo)
+        if (isRadioStream) video.useController = false
         carregando = findViewById(R.id.playerCarregando)
         status = findViewById(R.id.playerStatus)
         topo = findViewById(R.id.playerTopo)
@@ -236,7 +244,7 @@ class PlayerActivity : AppCompatActivity() {
         val novoAlvo = Alvo.de(intent) ?: return
         alvo = novoAlvo
         titulo.text = Generos.semAno(alvo.titulo)
-        intent.getStringExtra(VERSAO)?.let { versao = it }
+        versao = intent.getStringExtra(VERSAO) ?: Preferencias.versao
         status.text = getString(R.string.player_abrindo)
         carregando.visibility = View.VISIBLE
         mostrarCarregando(getString(R.string.player_abrindo))
@@ -296,20 +304,22 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private suspend fun preparar() {
-        val directUrls = (intent.getStringArrayListExtra("sources")?.toList().orEmpty() +
+        val directUrls = (runCatching { intent.getStringArrayListExtra("sources")?.toList().orEmpty() }.getOrDefault(emptyList()) +
             listOfNotNull(intent.getStringExtra(EXTRA_DIRECT_URL), intent.getStringExtra("url"), intent.dataString))
             .map(String::trim)
             .filter(PlaybackUrlPolicy::isSafeHttpUrl)
             .distinct()
             .take(30)
         val queue = parseCineHubEpisodeQueue(intent.getStringExtra("episode_queue").orEmpty())
+        sourceReferers = runCatching { intent.getStringArrayListExtra("source_referers")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { it to value } }.toMap()
+        sourceUserAgents = runCatching { intent.getStringArrayListExtra("source_user_agents")?.toList().orEmpty() }.getOrDefault(emptyList()).mapIndexedNotNull { i, value -> directUrls.getOrNull(i)?.let { it to value } }.toMap()
         val tmdb = intent.getIntExtra("tmdb_id", alvo.tmdbId).coerceAtLeast(0)
-        val isSeries = alvo.serie || queue.isNotEmpty()
+        val isSeries = !isLiveStream && !isRadioStream && (alvo.serie || queue.isNotEmpty())
         val r = if (directUrls.isNotEmpty()) {
             if (isSeries) {
                 val currentSeason = intent.getIntExtra("season_number", intent.getIntExtra("season", 0)).coerceAtLeast(0)
                 val currentEpisode = intent.getIntExtra("episode_number", intent.getIntExtra("episode", 0)).coerceAtLeast(0)
-                val all = queue.toMutableList()
+                val all = queue.map { item -> if (item.temporada == currentSeason && item.numero == currentEpisode) item.copy(fontes = mapOf("dub" to directUrls)) else item }.toMutableList()
                 if (currentSeason > 0 && currentEpisode > 0 && all.none { it.temporada == currentSeason && it.numero == currentEpisode }) {
                     all.add(Titulos.Ep(currentSeason, currentEpisode, mapOf("dub" to directUrls)))
                 }
@@ -440,7 +450,7 @@ class PlayerActivity : AppCompatActivity() {
 
     /** O vídeo, com a legenda externa ao lado quando há uma escolhida. */
     private fun fonteAtual(url: String): MediaSource {
-        val base = Playback.mediaSource(this, Source(url))
+        val base = Playback.mediaSource(this, Source(url, referer = sourceReferers[url], userAgent = sourceUserAgents[url]))
         val opcao = legendaExt ?: return base
         val srt = legendaExtSrt ?: return base
         // Salva o arquivo no cache para evitar limites de tamanho e bugs de parsing
@@ -1067,7 +1077,7 @@ class PlayerActivity : AppCompatActivity() {
         if (Vr.ativo) botao(getString(R.string.vr_voltar), "voltar", R.drawable.ic_arrow_back) {
             onBackPressedDispatcher.onBackPressed()
         }
-        botao(if (player?.isPlaying == true) getString(R.string.player_pausar)
+        if (!isLiveStream) botao(if (player?.isPlaying == true) getString(R.string.player_pausar)
               else getString(R.string.player_tocar), "pausa",
               if (player?.isPlaying == true) R.drawable.ic_pause else R.drawable.ic_play) { alternarPausa() }
         if (Vr.ativo) {
@@ -1118,6 +1128,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun alternarPausa() {
+        if (isLiveStream) return
         val p = player ?: return
         if (p.playbackState == Player.STATE_ENDED) p.seekTo(0)
         p.playWhenReady = !p.playWhenReady
@@ -1313,6 +1324,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (isLiveStream && event.action == KeyEvent.ACTION_DOWN && event.keyCode in setOf(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE)) return true
         if (event.action == KeyEvent.ACTION_DOWN && player != null && aviso.visibility != View.VISIBLE) {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY,
