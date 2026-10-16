@@ -27,6 +27,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
@@ -181,6 +182,7 @@ class PlayerActivity : AppCompatActivity() {
     private var travadas = 0
     private var travouDesde = 0L
     private var reduziu = false
+    private var velocidade = 1.0f
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -556,7 +558,7 @@ class PlayerActivity : AppCompatActivity() {
      * ruim sem crescer sem fim.
      */
     private fun bufferDoFilme(): DefaultLoadControl =
-        if (Aparelho.poucaMemoria) {
+        if (Aparelho.poucaMemoria || Preferencias.economia) {
             DefaultLoadControl.Builder()
                 .setBufferDurationsMs(15_000, 30_000, 2_500, 5_000)
                 .setTargetBufferBytes(32 * 1024 * 1024)
@@ -1098,7 +1100,39 @@ class PlayerActivity : AppCompatActivity() {
         }
         botao(getString(R.string.player_audio_legenda), "faixas", R.drawable.ic_subtitles) { painelFaixas() }
         botao(getString(R.string.player_qualidade), "qualidade", R.drawable.ic_hd) { painelQualidade() }
+        botao("Velocidade ${velocidade}×", "velocidade", R.drawable.ic_forward_10) { cicloVelocidade() }
+        botao("Buffer: ${if (Aparelho.poucaMemoria || Preferencias.economia) "econômico" else "normal"}", "buffer", R.drawable.ic_hd) { alternarBuffer() }
         botao(getString(R.string.player_recomecar), "inicio", R.drawable.ic_replay) { player?.seekTo(0); mostrarControles() }
+    }
+
+    private fun cicloVelocidade() {
+        val opcoes = listOf(0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
+        val atual = opcoes.indexOfFirst { kotlin.math.abs(it - velocidade) < 0.01f }
+        velocidade = opcoes[(atual + 1).mod(opcoes.size)]
+        player?.playbackParameters = PlaybackParameters(velocidade, 1.0f)
+        Toast.makeText(this, "Velocidade ${velocidade}×", Toast.LENGTH_SHORT).show()
+        montarBotoes()
+        mostrarControles(focarLinha = false)
+    }
+
+    private fun alternarBuffer() {
+        if (Aparelho.poucaMemoria) {
+            Toast.makeText(this, "Modo econômico fixado para proteger a memória deste aparelho.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val atual = player
+        val posicao = atual?.currentPosition ?: 0L
+        val tocando = atual?.playWhenReady != false
+        Preferencias.economia = !Preferencias.economia
+        sessao?.release()
+        sessao = null
+        atual?.removeListener(ouvinte)
+        video.player = null
+        atual?.release()
+        player = null
+        tocarFonte(posicao, pausado = !tocando)
+        montarBotoes()
+        mostrarControles(focarLinha = false)
     }
 
     private fun botao(texto: String, marca: String, icone: Int, acao: () -> Unit) {
