@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Paleta tirada do próprio ícone: fundo quase preto, ciano como único
-     destaque. Uma cor de acento só é o que mantém a tela calma numa TV. -->
+<!-- Identidade CineHUB: preto, branco e vermelho como único destaque. -->
 <resources>
     <color name="surface">#0B0E14</color>
     <color name="surface_card">#D90B0E14</color>
@@ -22,4 +21,5 @@
     <color name="abertura_fundo">#0B0F2A</color>
     <color name="texto_botao_ficha">#FFFFFFFF</color>
 
+    <color name="texto_item_painel_sub">#A8B4C0</color>
 </resources>
