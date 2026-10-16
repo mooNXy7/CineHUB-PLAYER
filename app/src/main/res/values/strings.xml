@@ -74,4 +74,10 @@
     <string name="faixas_titulo">Qualidade, áudio e legendas</string>
 
     <string name="painel_dica">Use as setas para navegar · OK para selecionar · Voltar para fechar</string>
+<string-array name="tamanhos_legenda">
+        <item>Pequena</item>
+        <item>Média</item>
+        <item>Grande</item>
+        <item>Enorme</item>
+    </string-array>
 </resources>
