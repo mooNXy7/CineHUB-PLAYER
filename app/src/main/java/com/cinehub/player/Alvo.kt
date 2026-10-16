@@ -31,6 +31,8 @@ data class Alvo(
             val titulo = intent?.getStringExtra(TITULO)
                 ?: intent?.getStringExtra("title")
                 ?: intent?.getStringExtra("content_title")
+                ?: intent?.getStringExtra("radio_name")
+                ?: intent?.getStringExtra("channel_name")
                 ?: intent?.getStringExtra("content_id")
                 ?: intent?.getStringExtra("url")?.substringAfterLast('/')?.substringBefore('?')
                 ?: intent?.dataString?.substringAfterLast('/')?.substringBefore('?')
